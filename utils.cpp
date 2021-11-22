@@ -646,3 +646,40 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 
 
 
+  cv::Rect scaleBBox(cv::Rect rect, float scale)
+  {
+	  cv::Rect sBBox;
+
+	  sBBox.width = int((float)rect.width * scale);
+	  sBBox.height = int((float)rect.height* scale);
+	  sBBox.x = int((float)rect.x * scale);
+	  sBBox.y = int((float)rect.y * scale);
+
+	  return sBBox;
+
+  }
+
+  cv::Rect enlargeBBox(cv::Rect rect, float scale)
+  {
+	  cv::Rect sBBox;
+
+	  sBBox = rect;
+	  int wDiff = int((float)rect.width * (1. - scale));
+	  int hDiff = int((float)rect.height * (1. - scale));
+	  sBBox.width -= wDiff;
+	  sBBox.height -= hDiff;
+	  sBBox.x += int((float)wDiff / 2.);
+	  sBBox.y += int((float)hDiff / 2.);
+
+	  return sBBox;
+
+  }
+
+
+  float bboxRatio(cv::Rect r1, cv::Rect r2)
+  {
+	  int area1 = r1.area();
+	  int area2 = r2.area();
+
+	  return area1 > area2 ? (float)area2 / (float)area1 : (float)area1 / (float)area2;
+  }

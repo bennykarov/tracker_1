@@ -7,7 +7,7 @@
 class CBGSubstruct {
 public:
 	int main(std::string videoName);
-	void init(int type,int History = 50, double varThreshold = 30.0, bool detectShadows = true);
+	void init(int History = 50, double varThreshold = 30.0, bool detectShadows = true, int emphasize=0);
 	void setLearnRate(double rate) { m_learningRate = rate;}  // Negative parameter value makes the algorithm to use some automatically chosen learning rate
 	cv::Mat process(cv::Mat img);
 	void startLearn() { m_learningRate = -1.;}  // Negative parameter value makes the algorithm to use some automatically chosen learning rate
@@ -15,10 +15,14 @@ public:
 
 	void setDebugLevel(int level) { m_debugLevle = level; }
 
+
+private:
+	void emphasizeMask(cv::Mat &mask,int enlargeDepth=1);
 private:
     cv::Ptr<cv::BackgroundSubtractor> m_pBackSub;
-    double m_learningRate = 0;// DDEBUG -1;
+    double m_learningRate = -1;// DDEBUG -1;
 	int m_debugLevle = 0;
 	int m_frameNum = 0;
+	int m_emphasize = 1;
     //int learning_frame = 0;
 };

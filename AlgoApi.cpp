@@ -1,3 +1,10 @@
+#include "opencv2/opencv.hpp"
+#include "opencv2/core/core.hpp"
+
+#include "config.hpp"
+#include "utils.hpp"
+#include "CObject.hpp"
+#include "trackerBasic.hpp"
 #include "AlgoTracker.hpp"
 #include "AlgoApi.h"
 
@@ -29,12 +36,12 @@ API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 		case ALGO_RAMI_LEVI:
 		{
 			if (frameNum == 0) {
-				g_tracker.init(width, height, 0.5);
+				g_tracker.init(width, height, image_size, 0.5);
 			}
 
 
 			g_tracker.process((void*)pData);
-			g_tracker.show();
+			g_tracker.show();				
 
 			frameNum++;
 

@@ -84,10 +84,11 @@ int CBGSubstruct::main(std::string videoName)
     	cv.BackgroundSubtractorLSBP();
     	cv.BackgroundSubtractorGSOC();
  *--------------------------------------------------------------------------------------------------------------------------------------------------------*/
-void CBGSubstruct::init(int type, int History, double varThreshold, bool detectShadows)
+void CBGSubstruct::init(int History, double varThreshold, bool detectShadows, int emphasize)
 {
     //create Background Subtractor objects
 	m_pBackSub = createBackgroundSubtractorMOG2( History, varThreshold, detectShadows); // createBackgroundSubtractorKNN();
+	m_emphasize = emphasize;
 
 }
 
@@ -104,7 +105,27 @@ cv::Mat  CBGSubstruct::process(cv::Mat frame)
         return cv::Mat();
 
     //update the background model
-    m_pBackSub->apply(frame, fgMask, m_learningRate);
+	m_pBackSub->apply(frame, fgMask, m_learningRate);
 
+	if (m_emphasize > 0)
+		emphasizeMask(fgMask, m_emphasize);
     return fgMask;
+}
+
+
+
+void CBGSubstruct::emphasizeMask(cv::Mat &mask, int enlargeDepth)
+{
+
+	// Fill holes within the pupil area 
+	int kernel_size = 1; // DDEBUG CONST 
+	cv::Mat element1 = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * kernel_size + 1, 2 * kernel_size + 1), cv::Point(kernel_size, kernel_size));
+	kernel_size = 3; // DDEBUG CONST 
+	cv::Mat element3 = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * kernel_size + 1, 2 * kernel_size + 1), cv::Point(kernel_size, kernel_size));
+	cv::erode(mask, mask, element1);
+	for (int i=0; i< enlargeDepth;i++)
+		cv::dilate(mask, mask, element3);
+
+
+
 }

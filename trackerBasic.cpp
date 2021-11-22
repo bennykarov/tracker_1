@@ -7,6 +7,7 @@
 #include <opencv2/tracking.hpp>
 #include <opencv2/core/ocl.hpp>
 
+#include "config.hpp"
 #include "trackerBasic.hpp"
 
 

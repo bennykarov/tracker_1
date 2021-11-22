@@ -155,7 +155,6 @@
       <PreprocessorDefinitions>NDEBUG;BAUOTECHVS17TEMPLATEDL_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalOptions>/std:c++17 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -177,6 +176,7 @@
     <ClCompile Include="dllmain.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="hungarian2.cpp" />
     <ClCompile Include="mog.cpp" />
     <ClCompile Include="trackerBasic.cpp" />
     <ClCompile Include="utils.cpp" />
