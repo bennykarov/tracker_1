@@ -9,12 +9,23 @@
 #include "opencv2/highgui.hpp"
 
 #include "mog.hpp"
+#include "CObject.hpp"
 
 
 class CRoi2frame {
 public:
 	cv::Rect   bbox;
 	int frameNum;
+};
+
+
+enum AGE {
+	BORN = 0,
+	STARTER, // 1,
+	FINE,	// 2
+	STABLE, // 3
+	TRACKED, // 4
+	HIDDEN	// 5
 };
 
 class CTrack {
@@ -26,18 +37,28 @@ public:
 	int show();
 
 private:
-	std::vector<cv::KeyPoint> findBySimpleBlob(cv::Mat img);
-	std::vector <cv::Rect> findByContours(cv::Mat bgMask);
+	std::vector<cv::KeyPoint> detectBySimpleBlob(cv::Mat img);
+	std::vector <cv::Rect> detectByContours(cv::Mat bgMask);
+	int detectByTracker(cv::Mat frame);
+	int detectByTracker_OLD(cv::Mat frame);
+
+	bool checkAreStability(std::vector <cv::Rect>, int len);
+
 	int matchObjects(std::vector<cv::Rect> newROIs);
 	void consolidateDetection();
+	void removeShadows(float shadowClockDirection);
+	void removeShadows(std::vector<cv::Rect>  &newROIs, std::vector<LABEL> labels, float shadowClockDirection);
+	void removeShadow(CObject &obj, float shadowClockDirection);
+	std::vector<LABEL>   classify(cv::Mat img, cv::Mat bgMask, std::vector <cv::Rect>  rois);
+
 
 private:
 	int m_width = 0;
 	int m_height = 0;
 	void *m_data = NULL;
 	int m_frameNum = 0;
-	float m_scale = 0.5;
-	float m_scaleDisplay = 1.;
+	float m_calcScale = 0.5;
+	float m_scaleDisplay = 1.;// 0.7;
 
 
 	cv::Mat m_frame;
