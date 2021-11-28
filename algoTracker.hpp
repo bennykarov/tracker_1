@@ -28,18 +28,20 @@ enum AGE {
 	HIDDEN	// 5
 };
 
+
 class CTrack {
 public:
 	void init(int w, int h, int imgSize, float scaleDisplay = 0.5);
 	int process(void *dataTemp);
-	int processFrame(cv::Mat frame);
-
-	int show();
+	int processFrame(cv::Mat &frame);
+	void draw(cv::Mat &img, float scale);
+	int draw();
 
 private:
 	std::vector<cv::KeyPoint> detectBySimpleBlob(cv::Mat img);
 	std::vector <cv::Rect> detectByContours(cv::Mat bgMask);
 	int detectByTracker(cv::Mat frame);
+	bool detectObjByOpticalFlow(cv::Mat frame, int objInd);
 	int detectByTracker_OLD(cv::Mat frame);
 
 	bool checkAreStability(std::vector <cv::Rect>, int len);
@@ -57,11 +59,12 @@ private:
 	int m_height = 0;
 	void *m_data = NULL;
 	int m_frameNum = 0;
-	float m_calcScale = 0.5;
+	//float m_calcScale = 0.5;
 	float m_scaleDisplay = 1.;// 0.7;
 
 
-	cv::Mat m_frame;
+	cv::Mat m_frameOrg; // Original image
+	cv::Mat m_frame; // working image
 	cv::Mat m_display;
 
 

@@ -16,6 +16,7 @@
 #include "config.hpp"
 #include "mog.hpp"
 #include "trackerBasic.hpp"
+#include "MotionTrack.hpp"
 
 #include "algoTracker.hpp"
 
@@ -86,20 +87,20 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	// [GENERAL]
 	conf.videoName = pt.get<std::string>("GENERAL.video", conf.videoName);
 	conf.roisName = pt.get<std::string>("GENERAL.rois", conf.roisName);
-	conf.trackerType = pt.get<int>("GENERAL.tracker", conf.trackerType);
-	conf.waitKeyTime = pt.get<int>("GENERAL.wait-key", conf.waitKeyTime);
-	/*
-	conf.displayScale = pt.get<float>("GENERAL.scaleDisplay", conf.displayScale);
-	conf.calcScale = pt.get<float>("GENERAL.scale", conf.calcScale);
-	*/
+	conf.waitKeyTime = pt.get<int>("GENERAL.delay-ms", conf.waitKeyTime);
+	//conf.displayScale = pt.get<float>("GENERAL.scaleDisplay", conf.displayScale);
+	conf.scale = pt.get<float>("ALGO.scale", conf.scale);
 	conf.record = pt.get<int>("GENERAL.record", conf.record);
 	conf.demoMode = pt.get<int>("GENERAL.demo", conf.demoMode);
+	conf.debugLevel = pt.get<int>("GENERAL.debug", conf.debugLevel);
 	conf.shadowclockDirection = pt.get<float>("GENERAL.shadowHand", conf.shadowclockDirection);
+	//---------
 	// ALGO:
+	//---------
 	conf.MHistory = pt.get<int>("ALGO.MHistory", conf.MHistory);
 	conf.MvarThreshold = pt.get<float>("ALGO.MvarThreshold", conf.MvarThreshold);
 	conf.MlearningRate = pt.get<float>("ALGO.MlearningRate", conf.MlearningRate);
-	conf.useTracker = pt.get<float>("ALGO.tracker", conf.useTracker);
+	conf.trackerType = pt.get<int>("ALGO.tracker", conf.trackerType);
 
 
 	return true;
@@ -126,9 +127,9 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		// DDEBUG DDEBUG : Read RIO's from a file 
 		if (!m_params.roisName.empty())
 			m_roiList = readROISfile(m_params.roisName);
-		if (m_calcScale != 1.)
+		if (m_params.scale != 1.)
 			for (auto &roi : m_roiList)
-				roi.bbox = scaleBBox(roi.bbox, m_calcScale);
+				roi.bbox = scaleBBox(roi.bbox, m_params.scale);
 	}
 
 
@@ -151,7 +152,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		}
 	}
 
-	int CTrack::processFrame(cv::Mat frame)
+	int CTrack::processFrame(cv::Mat &frame)
 	{
 		int tracked_count = 0;
 
@@ -160,7 +161,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 		// -1- Track tracked objects
 		//------------------------------------
-		if (m_params.useTracker)
+		if (m_params.trackerType > 0 && m_params.trackerType < 10)
 			tracked_count = detectByTracker(frame);
 
 		// -1- Find new motion 
@@ -171,7 +172,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			sFrame = frame;
 
 			cv::Mat bgMask = m_bgSeg.process(sFrame);
-			if (!bgMask.empty()) {
+			if (m_params.debugLevel > 1 && !bgMask.empty()) {
 				cv::imshow("mog", bgMask);
 				//bgMask.setTo(0, bgMask < 255); // = when shadow filter is on 
 			}
@@ -190,11 +191,19 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			}
 		}
 
+		if (m_params.trackerType == 10) // optical flow
+		for (int i = 0; i < m_objects.size(); i++) {
+			//if (m_objects[i].m_lastDetected < m_frameNum)  // if not detected by mog -  DDEBUG removed 
+			{				
+				detectObjByOpticalFlow(frame, i);
+			}
+		}
+
+
 		// -3- consolidate detection
 		//------------------------------------
 		//removeShadows(2.0);
 		consolidateDetection();
-
 
 #if 0
 		////>>>> tracking by ROI file:
@@ -218,22 +227,26 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 #endif 
 		return tracked_count;
 
-
 	}
 
-	int CTrack::process(void *dataTemp)
+	int CTrack::process(void *dataOrg)
 	{
-		cv::Mat frameIn;
 		size_t sizeTemp(m_width * m_height * m_colorDepth); 
 		if (m_data == NULL)
 			m_data  = malloc(sizeTemp);
 
-		memcpy( m_data, dataTemp, sizeTemp); // buffering NOT optimized
-		frameIn = cv::Mat(m_height, m_width, depth2cvType(m_colorDepth), m_data);
-		if (frameIn.empty())
+		if (0)
+			memcpy(m_data, dataOrg, sizeTemp); // buffering NOT optimized
+		else
+			m_data = dataOrg; // No buffering - use original buffer for processing 
+
+		m_frameOrg = cv::Mat(m_height, m_width, depth2cvType(m_colorDepth), m_data);
+		if (m_frameOrg.empty())
 			std::cout << "read() got an EMPTY frame\n";
 		else
-			cv::resize(frameIn, m_frame, cv::Size(0, 0), m_calcScale, m_calcScale);
+			cv::resize(m_frameOrg, m_frame, cv::Size(0, 0), m_params.scale, m_params.scale);
+
+		//m_frame = frameIn;
 
 		processFrame(m_frame);
 		return m_frameNum++;
@@ -270,13 +283,41 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		}
 	}
 
-	int CTrack::show()
+	int CTrack::draw()
 	{
 		static int key = 0;
-		cv::Mat display = m_frame.clone();
+
+		draw(m_frameOrg, 1./m_params.scale);
+
+		if (m_params.debugLevel > 9) {
+			draw(m_frame, 1.);
+			imshow("video", m_frame);
+
+			/*
+			if (m_params.record)
+				demoRecorder.write(display);
+			*/
+
+			key = cv::waitKey(m_params.waitKeyTime);
+			if (m_frameNum == 1) // DDEBUG 
+				key = 'p';
+			if (key == 'p')
+				key = cv::waitKey(-1);
+
+			return key;
+		}
+		else
+			return 0;
+
+	}
+		
+	void CTrack::draw(cv::Mat &img, float scale)
+	{
+		//cv::Mat display = m_frame.clone();
+		cv::Mat display = img;
 
 		cv::Point textPos(50, 60); // frameNum display
-		cv::putText(display, std::to_string(m_frameNum), textPos, cv::FONT_HERSHEY_SIMPLEX, 1., cv::Scalar(0, 200, 50), 2);
+		cv::putText(display, std::to_string(m_frameNum), textPos, cv::FONT_HERSHEY_SIMPLEX, 2., cv::Scalar(0, 200, 50), 2);
 
 		// Draw detection rects
 		for (int i = 0; i < m_objects.size();i++) {
@@ -291,9 +332,17 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 				color = setColorByLabel(LABEL(m_objects[i].m_label));
 
 			//cv::rectangle(display, resizeBBox(m_objects[i].m_bboxes.back(),0.6) , color);
-			cv::rectangle(display, m_objects[i].m_bboxes.back(), color);
+			cv::Rect bbox = scaleBBox(m_objects[i].m_bboxes.back(), scale);
+			cv::rectangle(display, bbox, color);
 
-			cv::Point text_pos = cv::Point(m_objects[i].m_bboxes.back().x, m_objects[i].m_bboxes.back().y - 10);
+			if (m_objects[i].m_detectionType == AGE::TRACKED)
+				UTILS::drawCorss(display, bbox, cv::Scalar(255,255,255));
+
+			if (m_objects[i].isMTracked())
+				cv::rectangle(display, scaleBBox(m_objects[i].m_motionTracker->getBBox(),scale), cv::Scalar(200,200,0));
+
+
+			cv::Point text_pos = cv::Point(bbox.x, bbox.y - 10);
 			cv::putText(display, std::to_string(i), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
 			/*
 			// Add time on screen 
@@ -301,26 +350,14 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			cv::Point text_pos = cv::Point(obj.m_bboxes.back().x, obj.m_bboxes.back().y - 10);
 			cv::putText(display, std::to_string(seconds + 1), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
 			*/
+
+
+			/*
 			if (m_scaleDisplay != 1.)
 				cv::resize(display, display, cv::Size(0, 0), m_scaleDisplay, m_scaleDisplay);
+			*/
 
 		}
-
-
-		imshow("video", display);
-
-		/*
-		if (m_params.record)
-			demoRecorder.write(display);
-		*/
-
-		key = cv::waitKey(10);
-		if (m_frameNum == 1) // DDEBUG 
-			key = 'p';
-		if (key == 'p')
-			key = cv::waitKey(-1);
-
-		return key;
 	}
 
 
@@ -360,7 +397,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 		findContours(bgMask, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
 
-		const int MIN_CONT_AREA = 10*5;
+		const int MIN_CONT_AREA = 20*10;
 		const int MAX_CONT_AREA = 200 * 120;
 
 		// Contour analysis
@@ -436,12 +473,15 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 	void CTrack::consolidateDetection()
 	{
+		const int MaxHiddenTrackFrames = 5;
 		const int starterLen = 10;   // DDEBUG CONST 
 		const int stableLen = CONSTANTS::FPS * 1; // DDEBUG CONST 
 		for (auto &obj : m_objects) {
 			obj.m_detectionType = AGE::STARTER;
-			if (obj.isTracked())
+			if (obj.isTracked(m_frameNum))
 				obj.m_detectionType = AGE::TRACKED;
+			else if (obj.m_lastTracked > m_frameNum - MaxHiddenTrackFrames) // &  not tracked
+				obj.m_detectionType = AGE::HIDDEN;
 			else if (obj.len() > starterLen) {
 				obj.m_detectionType = AGE::FINE;
 				if (obj.len() > stableLen) {
@@ -475,24 +515,48 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 					obj.m_tracker->init(m_params.trackerType, 0);
 					//obj.m_tracker->setROI(frame, resizeBBox(obj.m_bboxes.back(),0.7));
 					obj.m_tracker->setROI(frame, obj.m_bboxes.back());
-					obj.m_detectionType = AGE::TRACKED;
 				}
 
 				if (obj.isTracked()) {
 					if (obj.m_tracker->track(frame)) {
 						trackerROI = obj.m_tracker->getBBox();
-						//obj.add(resizeBBox(trackerROI, 0.7), m_frameNum);
 						obj.add(trackerROI, m_frameNum);
+						obj.m_lastTracked = m_frameNum;
+						tracked_count++;
 					}
-					else {
-						obj.m_detectionType = AGE::HIDDEN;
-					}
-					tracked_count++;
 				}
 		}
 
 		return tracked_count;
 	}
+
+
+	bool CTrack::detectObjByOpticalFlow(cv::Mat frame, int objInd)
+	{
+		int tracked_count = 0;
+		int ind = 0;
+		cv::Rect trackerROI;
+		auto &obj = m_objects[objInd];
+
+		if (obj.m_motionTracker == NULL && obj.m_detectionType == AGE::STABLE) {
+			// Set a new tracker 
+			obj.m_motionTracker = new CMotionTracker;
+			obj.m_motionTracker->init(frame.cols, frame.rows);
+		}
+		else  if (obj.isMTracked()) {
+			if (obj.m_motionTracker->track(frame, obj.m_bboxes.back())) {
+				trackerROI = obj.m_motionTracker->getBBox();
+				obj.add(trackerROI, m_frameNum);
+				obj.m_lastTracked = m_frameNum;
+			}
+			else
+				int debug = 10;
+		}
+		
+		return obj.m_lastDetected == m_frameNum;
+	}
+
+
 
 	int CTrack::detectByTracker_OLD(cv::Mat frame)
 	{
@@ -607,9 +671,9 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		 
 
 		for (int i = 0; i < rois.size(); i++) {
-			if (rois[i].width < int((float)SIZES::minVehicle * m_calcScale))
+			if (rois[i].width < int((float)SIZES::minVehicle * m_params.scale))
 				labels.push_back(LABEL::HUMAN);
-			else if (rois[i].width >= int((float)SIZES::maxHuman * m_calcScale))
+			else if (rois[i].width >= int((float)SIZES::maxHuman * m_params.scale))
 				labels.push_back(LABEL::VEHICLE);
 			else  { // between 70..140 possible humnan + shadow  OR a Car 
 				int activePixels = cv::countNonZero(bgMask(rois[i]));
@@ -624,3 +688,4 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		return labels;
 
 	}
+

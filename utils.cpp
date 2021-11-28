@@ -211,7 +211,7 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  return rois_local;
   }
 
-  bool UTILS::drawCorners(cv::Mat panoImg, const vector<cv::Rect> rois_local)
+  bool UTILS::drawCorners(cv::Mat &panoImg, const vector<cv::Rect> rois_local)
   {
 	  //vector<cv::Rect> rois_local;
 	  cv::Mat display;

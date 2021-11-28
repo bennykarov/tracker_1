@@ -28,18 +28,18 @@ struct Config
 {
 	std::string videoName;
 	std::string roisName;
-	int trackerType = 2;
+	int trackerType = 0;
 	int debugLevel = 0;
-	//float scale = 1.;
+	float scale = 0.5;
 	float displayScale = 1.;
-	int waitKeyTime=10;
+	int waitKeyTime=1;
 	int record = 0;
 	int demoMode=0;
 	// MOG2 params:
-	int MHistory = 30;
-	float MvarThreshold = 20.0;
+	int MHistory = 100;
+	float MvarThreshold = 30.0;
 	float MlearningRate = -1.;
-	int useTracker = 0;
-	float shadowclockDirection = 0;
+	//int useTracker = 0;
+	float shadowclockDirection = 2.0;
 
 	};

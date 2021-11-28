@@ -167,6 +167,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AlgoApi.h" />
+    <ClInclude Include="MotionTrack.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AlgoApi.cpp">
@@ -178,6 +179,7 @@
     </ClCompile>
     <ClCompile Include="hungarian2.cpp" />
     <ClCompile Include="mog.cpp" />
+    <ClCompile Include="MoitionTrack.cpp" />
     <ClCompile Include="trackerBasic.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>

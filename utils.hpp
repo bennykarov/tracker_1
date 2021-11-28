@@ -3,6 +3,44 @@
 #include <string>
 #include <vector>
 
+// EXCEPTION HANDLING
+#define CHECK_assertion(COND)   ((COND) ? (static_cast<void>(0)) : assertion_fail(# COND, __FILE__, __LINE__))
+#define CHECK_exception(COND, MSG)   ((COND) ? (static_cast<void>(0)) : assertion_fail(# COND, __FILE__, __LINE__, MSG))
+
+
+inline  void assertion_fail(const char* expr, const char* file, int line, const char* msg)
+{
+	std::string error = msg;
+	error.append(";    in expr" + std::string(expr) + ", file: " + file + "(" + std::to_string(line) + ")");
+	MessageBoxA(0, error.c_str(), "EXCEPTION!", MB_OK);
+	std::exit(1);
+}
+inline  void assertion_fail(const char* expr, const char* file, int line)
+{
+	std::string error = ";Error    in expr : " + std::string(expr) + ", file: " + file + "(" + std::to_string(line) + ")";
+	MessageBoxA(0, error.c_str(), "EXCEPTION!", MB_OK);
+	std::exit(1);
+}
+
+template<typename T>
+T sqr(T x)
+{
+	return x * x;
+}
+
+template<typename T>
+inline double distanceSQR(T a, const T b)
+{
+	return sqr(a.x - b.x) + sqr(a.y - b.y);
+}
+
+
+template<typename T>
+inline double distance(T a, const T b)
+{
+	return sqrt(sqr(a.x - b.x) + sqr(a.y - b.y));
+}
+
 
 enum ANGLES {
 	PAN_IDX=0, // Heading 
@@ -66,9 +104,15 @@ private:
  };
 
 
- namespace UTILS {
+ class UTILS {
+	 public:
 	 vector<cv::Rect>  alignRois(vector<cv::Rect> rois);
-	 bool drawCorners(cv::Mat panoImg, const vector<cv::Rect> rois);
+	 static bool drawCorners(cv::Mat &img, const vector<cv::Rect> rois);
+	 static void drawCorss(cv::Mat &img, cv::Rect r, cv::Scalar color, int thickness = 1)
+	 {
+		 cv::line(img, r.tl(), r.br(), color, thickness);
+		 cv::line(img, cv::Point(r.br().x, r.tl().y), cv::Point(r.tl().x, r.br().y), color, thickness);
+	 };
  };
 
 

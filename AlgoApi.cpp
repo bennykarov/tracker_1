@@ -4,6 +4,7 @@
 #include "config.hpp"
 #include "utils.hpp"
 #include "trackerBasic.hpp"
+#include "MotionTrack.hpp"
 #include "AlgoTracker.hpp"
 #include "AlgoApi.h"
 
@@ -40,11 +41,10 @@ API_EXPORT int RunAlgoColors(BAUOTECH_AND_BENNY_KAROV_ALGO algo,
 
 
 			g_tracker.process((void*)pData);
-			g_tracker.show();				
+			g_tracker.draw();
 
 			frameNum++;
 
-			// benny put your algo of Rami levi here
 		}
 		break;
 		case ALGO_ZOSMAN:
