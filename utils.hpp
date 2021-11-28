@@ -125,4 +125,4 @@ private:
  cv::Rect extendBBox(cv::Rect rect_, cv::Point p);
  cv::Rect scaleBBox(cv::Rect rect, float scale);
  float    bboxRatio(cv::Rect r1, cv::Rect r2);
- cv::Rect enlargeBBox(cv::Rect rect, float scale);
+ cv::Rect resizeBBox(cv::Rect rect, float scale);

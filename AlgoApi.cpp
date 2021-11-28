@@ -3,7 +3,6 @@
 
 #include "config.hpp"
 #include "utils.hpp"
-#include "CObject.hpp"
 #include "trackerBasic.hpp"
 #include "AlgoTracker.hpp"
 #include "AlgoApi.h"

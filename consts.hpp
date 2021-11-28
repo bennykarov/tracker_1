@@ -14,3 +14,11 @@ float const DAY_CAM_DISPLAY_SCALE = 1.;
 */
 };
 
+
+namespace  SIZES {
+const int minVehicle = 70*2;
+const int maxHuman   = 80*2;
+
+	
+	
+};

@@ -3,6 +3,8 @@
 
 namespace CONSTANTS {
 	int const FPS = 30;
+	int const motionDetectionFPS = 2;
+	int const DetectionFPS = 2;
 
 	/*
 	int const KEEP_ALIVE_SEC = 5;
@@ -16,12 +18,11 @@ namespace CONSTANTS {
 };
 
 
-enum SHAPE_TYPE {
-	hamburger=1,
-	stake,
-	fillingLevel,
-	miniBamburger
+namespace  SIZES {
+	const int minVehicle = 70 * 2;
+	const int maxHuman = 80 * 2;
 };
+
 
 struct Config
 {
@@ -29,7 +30,7 @@ struct Config
 	std::string roisName;
 	int trackerType = 2;
 	int debugLevel = 0;
-	float scale = 1.;
+	//float scale = 1.;
 	float displayScale = 1.;
 	int waitKeyTime=10;
 	int record = 0;
@@ -38,5 +39,7 @@ struct Config
 	int MHistory = 30;
 	float MvarThreshold = 20.0;
 	float MlearningRate = -1.;
+	int useTracker = 0;
+	float shadowclockDirection = 0;
 
 	};

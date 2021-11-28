@@ -659,7 +659,7 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 
   }
 
-  cv::Rect enlargeBBox(cv::Rect rect, float scale)
+  cv::Rect resizeBBox(cv::Rect rect, float scale)
   {
 	  cv::Rect sBBox;
 
