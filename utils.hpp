@@ -53,7 +53,9 @@ enum ANGLES {
 inline cv::Point3f  RAD2DEG_vec3f(cv::Point3f radVec) { return cv::Point3f(RAD2DEG(radVec.x), RAD2DEG(radVec.y), RAD2DEG(radVec.z)); }
 inline std::vector <float> RAD2DEG_vec(std::vector <float>  radVec) { std::vector <float>  degVec;  for (auto &rad : radVec) degVec.push_back(RAD2DEG(rad)); return degVec; }
 
-inline cv::Point centerOf(cv::Rect r) { return (r.br() + r.tl())*0.5; }
+cv::Point centerOf(cv::Rect r);// { return (r.br() + r.tl())*0.5; }
+cv::Rect  moveByCenter(cv::Rect r, cv::Point center);
+inline cv::Point2f centerOf(cv::Rect2f r) { return (r.br() + r.tl())*0.5; }
 inline bool isEmpty(cv::RotatedRect rr) { return (rr.size.width == 0 || rr.size.height == 0); }
 inline bool isEmpty(cv::Rect r) { return (r.width == 0 || r.height == 0); }
 
@@ -113,6 +115,18 @@ private:
 		 cv::line(img, r.tl(), r.br(), color, thickness);
 		 cv::line(img, cv::Point(r.br().x, r.tl().y), cv::Point(r.tl().x, r.br().y), color, thickness);
 	 };
+
+	 static void   checkBounderies(cv::Rect  &box, cv::Size imgSize)
+	 {
+		 if (box.x < 0)
+			 box.x = 0;
+		 if (box.y < 0)
+			 box.y = 0;
+		 if (box.x + box.width >= imgSize.width)
+			 box.width = imgSize.width - box.x - 1;
+		 if (box.y + box.height >= imgSize.height)
+			 box.height = imgSize.height - box.y - 1;
+	 }
  };
 
 
@@ -170,3 +184,6 @@ private:
  cv::Rect scaleBBox(cv::Rect rect, float scale);
  float    bboxRatio(cv::Rect r1, cv::Rect r2);
  cv::Rect resizeBBox(cv::Rect rect, float scale);
+ cv::Rect resizeBBox(cv::Rect rect, cv::Size size, float scale);
+ float bboxesOverlapping(cv::Rect r1, cv::Rect r2); // Ratio of overlapping 
+

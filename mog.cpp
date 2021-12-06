@@ -105,7 +105,16 @@ cv::Mat  CBGSubstruct::process(cv::Mat frame)
         return cv::Mat();
 
     //update the background model
-	m_pBackSub->apply(frame, fgMask, m_learningRate);
+	if (1) 
+	{
+		cv::Mat HSV, channels[3];
+		cv::cvtColor(frame, HSV, cv::COLOR_BGR2HSV);
+		cv::split(HSV, channels);
+
+		m_pBackSub->apply(channels[2], fgMask, m_learningRate);
+	}
+	else 
+		m_pBackSub->apply(frame, fgMask, m_learningRate);
 
 	if (m_emphasize > 0)
 		emphasizeMask(fgMask, m_emphasize);
@@ -122,7 +131,11 @@ void CBGSubstruct::emphasizeMask(cv::Mat &mask, int enlargeDepth)
 	cv::Mat element1 = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * kernel_size + 1, 2 * kernel_size + 1), cv::Point(kernel_size, kernel_size));
 	kernel_size = 3; // DDEBUG CONST 
 	cv::Mat element3 = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(2 * kernel_size + 1, 2 * kernel_size + 1), cv::Point(kernel_size, kernel_size));
-	cv::erode(mask, mask, element1);
+	if (0)
+	{
+		cv::erode(mask, mask, element1);
+		cv::dilate(mask, mask, element1);
+	}
 	for (int i=0; i< enlargeDepth;i++)
 		cv::dilate(mask, mask, element3);
 

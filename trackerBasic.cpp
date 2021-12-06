@@ -7,6 +7,7 @@
 #include <opencv2/tracking.hpp>
 #include <opencv2/core/ocl.hpp>
 
+#include "utils.hpp"
 #include "config.hpp"
 #include "trackerBasic.hpp"
 
@@ -130,17 +131,14 @@ bool CTracker::init()
 }
 
 
+
 bool CTracker::track(cv::Mat frame)
 {
 
-	if (m_bbox.width == 0 || m_bbox.height == 0 ) {
+	if (m_bbox.width == 0 || m_bbox.height == 0) {
 		reset();
 		return false;
 	}
-
-
-
-    if (0) cv::imshow("tracker ROI", frame(m_bbox));
 
 	// Update the tracking result
 	bool ok = m_tracker->update(frame, m_bbox);
@@ -180,6 +178,7 @@ bool CTracker::track(cv::Mat frame)
 
 void CTracker::setROI(const cv::Mat &img, cv::Rect bbox)
 {
+	UTILS::checkBounderies(bbox, img.size());
 	m_bbox = bbox;
 
     if (m_bbox.x < 0)

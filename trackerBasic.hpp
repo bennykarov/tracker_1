@@ -24,8 +24,9 @@ public:
 	void reset()
 		{ m_frameNum = 0; falseDetectionLen = 0; m_bbox = cv::Rect(); init();}
 	bool  track(cv::Mat frame);
+	bool  track(cv::Mat frame, cv::Rect roi);
 	void setROI(const cv::Mat &img, cv::Rect bbox);
-	bool isActive() { return m_frameNum > 0; }
+	bool isActive() { return m_frameNum > 0; }  
 	bool isDetected() { return falseDetectionLen == 0;} // currently detected
 	// void setDebugLevlel(int l) { m_debugLevel = l;}
 

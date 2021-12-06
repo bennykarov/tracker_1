@@ -20,12 +20,11 @@ public:
 
 
 enum AGE {
+	AGE_1=9999,
 	BORN = 0,
 	STARTER, // 1,
 	FINE,	// 2
-	STABLE, // 3
-	TRACKED, // 4
-	HIDDEN	// 5
+	STABLE // 3
 };
 
 
@@ -40,18 +39,26 @@ public:
 private:
 	std::vector<cv::KeyPoint> detectBySimpleBlob(cv::Mat img);
 	std::vector <cv::Rect> detectByContours(cv::Mat bgMask);
-	int detectByTracker(cv::Mat frame);
-	bool detectObjByOpticalFlow(cv::Mat frame, int objInd);
+	int detectByTracker(const cv::Mat &frame);
+	int detectByOpticalFlow(const cv::Mat &frame);
+	bool detectObjByOpticalFlow(const cv::Mat &frame, int objInd);
+	bool detectObjByTracker(const cv::Mat &frame, int objInd);
+	
 	int detectByTracker_OLD(cv::Mat frame);
 
 	bool checkAreStability(std::vector <cv::Rect>, int len);
 
 	int matchObjects(std::vector<cv::Rect> newROIs);
+	int matchObjects_OLD(std::vector<cv::Rect> newROIs, std::vector<LABEL> lables);
 	void consolidateDetection();
 	void removeShadows(float shadowClockDirection);
-	void removeShadows(std::vector<cv::Rect>  &newROIs, std::vector<LABEL> labels, float shadowClockDirection);
+	void removeShadows(std::vector<cv::Rect>  &newROIs, float shadowClockDirection, std::vector<LABEL> labels);
 	void removeShadow(CObject &obj, float shadowClockDirection);
+	void pruneBGMask(cv::Mat &mask); // Remove tracked area from motion mask
+	//void classify();
 	std::vector<LABEL>   classify(cv::Mat img, cv::Mat bgMask, std::vector <cv::Rect>  rois);
+	LABEL   classify(cv::Mat img, cv::Mat bgMask, cv::Rect  rois);
+	cv::Rect predictNext(CObject obj, cv::Rect overlappedROI, DET_TYPE &type);
 
 
 private:
@@ -65,6 +72,8 @@ private:
 
 	cv::Mat m_frameOrg; // Original image
 	cv::Mat m_frame; // working image
+	cv::Mat m_prevFrame; // Prev
+	cv::Mat m_bgMask; // MOG2
 	cv::Mat m_display;
 
 

@@ -3,8 +3,9 @@
 
 namespace CONSTANTS {
 	int const FPS = 30;
-	int const motionDetectionFPS = 2;
-	int const DetectionFPS = 2;
+	int const DetectionFPS = 3;
+	int const motionDetectionFPS = DetectionFPS;
+	int const MogEmphasizeFactor = 1;
 
 	/*
 	int const KEEP_ALIVE_SEC = 5;
@@ -19,8 +20,12 @@ namespace CONSTANTS {
 
 
 namespace  SIZES {
-	const int minVehicle = 70 * 2;
-	const int maxHuman = 80 * 2;
+	const int minVehicleWidth = 55 * 2;
+
+	const int minHumanWidth = 15 *2;
+	const int maxHumanWidth = 50 * 2;
+	const int minHumanHeight = 30 * 2;
+	const int maxHumanHeight = 60 * 2;
 };
 
 
@@ -41,5 +46,6 @@ struct Config
 	float MlearningRate = -1.;
 	//int useTracker = 0;
 	float shadowclockDirection = 2.0;
+	int detectionFPS = 2;
 
 	};

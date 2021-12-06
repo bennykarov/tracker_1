@@ -676,10 +676,54 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
   }
 
 
+  // Resize with bopunderies check for resized box
+  cv::Rect resizeBBox(cv::Rect rect, cv::Size size, float scale)
+  {
+	  cv::Rect sBBox;
+
+	  sBBox = rect;
+	  int wDiff = int((float)rect.width * (1. - scale));
+	  int hDiff = int((float)rect.height * (1. - scale));
+	  sBBox.width -= wDiff;
+	  sBBox.height -= hDiff;
+	  sBBox.x += int((float)wDiff / 2.);
+	  sBBox.y += int((float)hDiff / 2.);
+
+	  UTILS::checkBounderies(sBBox, size);
+
+	  return sBBox;
+
+  }
+
+
+  // Ratio of RECTs area ( < 1 )
   float bboxRatio(cv::Rect r1, cv::Rect r2)
   {
 	  int area1 = r1.area();
 	  int area2 = r2.area();
 
 	  return area1 > area2 ? (float)area2 / (float)area1 : (float)area1 / (float)area2;
+  }
+
+  // Ratio of verlapped of two rect's
+  float bboxesOverlapping(cv::Rect r1, cv::Rect r2)
+  {
+	  cv::Rect overlappedBox = r1 & r2;
+	  if (overlappedBox.area() == 0)
+		  return 0;
+
+	  return r1.area() > r2.area() ? bboxRatio(r2, overlappedBox) : bboxRatio(r1, overlappedBox);
+  }
+
+
+  cv::Point centerOf(cv::Rect r) 
+  { 
+	  return (r.br() + r.tl())*0.5; 
+  }
+
+  cv::Rect moveByCenter(cv::Rect r, cv::Point center)
+  {
+	  r.x = center.x - r.width / 2;
+	  r.y = center.y - r.height / 2;
+	  return r;
   }
