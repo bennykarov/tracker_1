@@ -190,7 +190,9 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  return false;
 }
 
-
+  /*-------------------------------------------------------------------------
+		U T I L S       C L A S S  
+   -------------------------------------------------------------------------*/
   vector<cv::Rect>  UTILS::alignRois(vector<cv::Rect> rois)
   {
 	  vector<cv::Rect> rois_local;
@@ -243,7 +245,17 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 
   }
 
+  bool UTILS::nearEdges(cv::Size size, cv::Rect box)
+  {
+	  int near_ = 2;
+	  if (box.x < near_ || box.y < near_ || (size.width - box.x - box.width) < near_ || (size.height - box.y - box.height) < near_)
+		  return true;
+	  else
+		  return false;
 
+  }
+
+  /*---------------------------------------------------------------------------------------------------------*/
   
 
   int debug_imshow(std::string title, cv::Mat img, double scale, int waitTime)
@@ -694,6 +706,7 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  return sBBox;
 
   }
+
 
 
   // Ratio of RECTs area ( < 1 )

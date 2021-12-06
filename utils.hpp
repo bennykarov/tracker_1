@@ -127,6 +127,9 @@ private:
 		 if (box.y + box.height >= imgSize.height)
 			 box.height = imgSize.height - box.y - 1;
 	 }
+
+	 static bool nearEdges(cv::Size size, cv::Rect box);
+
  };
 
 

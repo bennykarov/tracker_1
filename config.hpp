@@ -34,6 +34,7 @@ struct Config
 	std::string videoName;
 	std::string roisName;
 	int trackerType = 0;
+	int onlineTracker = 0;
 	int debugLevel = 0;
 	float scale = 0.5;
 	float displayScale = 1.;
@@ -42,10 +43,10 @@ struct Config
 	int demoMode=0;
 	// MOG2 params:
 	int MHistory = 100;
-	float MvarThreshold = 30.0;
+	float MvarThreshold = 20.0;
 	float MlearningRate = -1.;
 	//int useTracker = 0;
-	float shadowclockDirection = 2.0;
+	float shadowclockDirection = 0;
 	int detectionFPS = 2;
 
 	};
