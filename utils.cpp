@@ -725,7 +725,8 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  if (overlappedBox.area() == 0)
 		  return 0;
 
-	  return r1.area() > r2.area() ? bboxRatio(r2, overlappedBox) : bboxRatio(r1, overlappedBox);
+	  return (float)overlappedBox.area() / (float)r1.area();
+	  //return r1.area() > r2.area() ? bboxRatio(r2, overlappedBox) : bboxRatio(r1, overlappedBox);
   }
 
 

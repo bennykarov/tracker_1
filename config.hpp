@@ -6,6 +6,7 @@ namespace CONSTANTS {
 	int const DetectionFPS = 3;
 	int const motionDetectionFPS = DetectionFPS;
 	int const MogEmphasizeFactor = 1;
+	int const StableLen = 4;
 
 	/*
 	int const KEEP_ALIVE_SEC = 5;

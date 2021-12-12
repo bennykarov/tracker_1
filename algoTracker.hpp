@@ -19,12 +19,13 @@ public:
 };
 
 
-enum AGE {
+enum STAGE {
 	AGE_1=9999,
 	BORN = 0,
 	STARTER, // 1,
 	FINE,	// 2
-	STABLE // 3
+	SENIOR, // 3 - once was STABLE 
+	STABLE // 4
 };
 
 
@@ -46,7 +47,7 @@ private:
 	
 	int detectByTracker_OLD(cv::Mat frame);
 
-	bool checkAreStability(std::vector <cv::Rect>, int len);
+	bool isStabel(const CObject &obj, int len);
 
 	int matchObjects(std::vector<cv::Rect> newROIs);
 	int matchObjects_OLD(std::vector<cv::Rect> newROIs, std::vector<LABEL> lables);
@@ -59,6 +60,9 @@ private:
 	std::vector<LABEL>   classify(cv::Mat img, cv::Mat bgMask, std::vector <cv::Rect>  rois);
 	LABEL   classify(cv::Mat img, cv::Mat bgMask, cv::Rect  rois);
 	cv::Rect predictNext(CObject obj, cv::Rect overlappedROI, DET_TYPE &type);
+
+	int trackByROI(cv::Mat frame);
+
 
 
 private:

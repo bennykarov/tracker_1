@@ -157,18 +157,18 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 	{
 		int tracked_count = 0;
 
-		// -1- Track tracked objects
-		//------------------------------------
+#if 0
+		// -1- Track by object's builtin tracker 
+		//----------------------------------------
 		if (m_params.trackerType > 0) {
 			if (m_params.trackerType == 10)
 				tracked_count = detectByOpticalFlow(frame);
 			else
 				tracked_count = detectByTracker(frame);
 		}
-			
-		
+#endif 		
 
-		// -1- Find new motion 
+		// -2- Find new motion by MOG
 		//------------------------------------
 		//if (m_frameNum % CONSTANTS::motionDetectionFPS == 0) {
 		if (m_frameNum % m_params.detectionFPS == 0) {
@@ -186,6 +186,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 				}
 			}
 
+#if 0
 			// Canny
 			if (0)
 			{
@@ -195,8 +196,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 				cv::Canny(bFrame, edgeImg, canny_low_threshold, 3 * canny_low_threshold, 3);
 				cv::imshow("Canny", edgeImg);
 			}
-
-
+#endif 
 
 			// -3- Find  motion's blobs (objects)
 			//------------------------------------
@@ -212,9 +212,10 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		}
 
 #if 0
+		// OLD tracker - now in Match() function
 		if (m_params.trackerType > 0) // optical flow
 		for (int i = 0; i < m_objects.size(); i++) {
-			//if (m_objects[i].m_lastDetected < m_frameNum)  // if not detected by mog -  DDEBUG removed 
+			if (m_objects[i].m_lastDetected < m_frameNum)  // try tracking if was not detected by mog
 			{				
 				if (m_params.trackerType == 10)
 					detectObjByOpticalFlow(frame, i);
@@ -228,31 +229,11 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		//------------------------------------
 		consolidateDetection();
 
-#if 0
-		////>>>> tracking by ROI file:
-		// DDEBUG : init tracker from file's list 
-		for (auto &roi : m_eroiList) {
-			// Add the new tracker
-			if (m_frameNum == roi.frameNum) {
-				CTracker *newTracker = new CTracker;
-				m_trackers.push_back(*newTracker);
-				m_trackers.back().init(m_params.trackerType, 0);
-				m_trackers.back().setROI(frame, roi.bbox);
-				roi.frameNum *= -1; // sign as nonactive 
-				// Add additionla obj data
-				int objLabel = roi.bbox.width > 70 ? 2 : 1; // classifies obj by ROI size + DDEBUG CONST  
-				m_objects.push_back(CObject(roi.bbox, m_frameNum));
-				//roiList.erase(roiList.begin()+ind); // remove from init list 
-			}
-		}
-
-		tracked_count = detectByTracker(frame);
-#endif 
+		//trackByROI(frame);
 
 		m_prevFrame = m_frame.clone();
 
 		return tracked_count;
-
 	}
 
 	int CTrack::process(void *dataOrg)
@@ -293,7 +274,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		switch (type) {
 		case (int)DET_TYPE::BGSeg:
 			return cv::Scalar(0, 255, 0);
-		case (int)DET_TYPE::OptycalFlow:
+		case (int)DET_TYPE::OpticalFlow:
 			return cv::Scalar(0, 0, 255);
 		case (int)DET_TYPE::Prediction:
 			return cv::Scalar(255, 0, 0);
@@ -379,19 +360,19 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		// Draw detection rects
 		for (int i = 0; i < m_objects.size();i++) {
 			//if (m_objects[i].m_bboxes.size() < 10)
-			if (m_objects[i].m_detectionScore < AGE::FINE)
+			if (m_objects[i].m_detectionStatus < STAGE::FINE)
 				continue;
 			//cv::Scalar color(0, 0, 250, 2);
 			cv::Scalar color;
-			//color = setColorByDetection(m_objects[i].m_detectionType);
-			color = setColorByDimensions(m_objects[i].m_bboxes.back());
+			color = setColorByDetection(m_objects[i].m_detectionTypes.back());
+			//color = setColorByDimensions(m_objects[i].m_bboxes.back());
 			// color = setColorByLabel(LABEL(m_objects[i].m_label));
 
 			//cv::rectangle(display, resizeBBox(m_objects[i].m_bboxes.back(),0.6) , color);
 			cv::Rect bbox = scaleBBox(m_objects[i].m_bboxes.back(), scale);
 			cv::rectangle(display, bbox, color);
 
-			if (m_objects[i].m_detectionType == DET_TYPE::Tracker)
+			if (m_objects[i].m_detectionTypes.back() == DET_TYPE::Tracker)
 				UTILS::drawCorss(display, bbox, cv::Scalar(255,255,255));
 
 			/*
@@ -400,7 +381,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			*/
 
 
-			if (0) // DDEBUG MODE 
+			if (m_params.debugLevel > 2) // DDEBUG MODE 
 			{
 				cv::Point text_pos = cv::Point(bbox.x, bbox.y - 10);
 				cv::putText(display, std::to_string(i), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
@@ -501,60 +482,72 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		 * match new objects to the new ones
 		 * Check box overlapping to match new & old
 		 -------------------------------------------*/
+		/*
+		int NO_MATCH = 0;
+		int OVERLAPPED = 1; // but area don't match 
+		int MATCH = 2;
+		*/
 		std::vector <int> match(newROIs.size(), 0);
 		//match.assign(newROIs.size(), 0);
+		int objInd = 0;
 		for (auto &oldObj : m_objects) {
 			if (oldObj.m_lastDetected == m_frameNum)  
 				continue;  // already detected by other algo (tracker etc.)
 
+			if (objInd == 1)
+				int debug = 10;
+
 			for (int i = 0; i < newROIs.size(); i++) {
-				if (match[i] == 0 && (newROIs[i] & oldObj.m_bboxes.back()).area() > 0) { // RECT TOUCH 
+				if (/*match[i] == 0 &&*/ (newROIs[i] & oldObj.m_bboxes.back()).area() > 0) { // RECT TOUCH 
 
-					match[i] = 1; // Mark this ROI as matched , or just ignore (in case low overlapping area
-					if (bboxesOverlapping(newROIs[i], oldObj.m_bboxes.back()) > 0.5) {
-
-						// Matched by boxes Similarity 
+					//match[i] = 1; // Mark this ROI as matched , or just ignore (in case low overlapping area)
+					//if (bboxesOverlapping(newROIs[i], oldObj.m_bboxes.back()) > 0.5) 
+					{
 						cv::Rect newBox;
 						DET_TYPE detectionType = DET_TYPE::DETECTION_NA;
+
+						// -1- Matched by boxes Similarity 
+						//----------------------------------
 						if (bboxRatio(newROIs[i], oldObj.m_bboxes.back()) > 0.7) { // two boxes over-lappeded and with similar size 
 							newBox = newROIs[i]; // match by box similarity 
 							detectionType = DET_TYPE::BGSeg;
+							match[i]++; // Allow multiple matching 
 						}
 
-						// Matched by Tracker (optycal)
-						else if (m_params.onlineTracker > 0 &&
-							oldObj.m_detectionScore >= AGE::STABLE && 
+						// -2- Matched by Tracker (Optical)
+						//----------------------------------
+						else if (m_params.onlineTracker > 0 &&  oldObj.m_detectionStatus >= STAGE::STABLE &&
 							!UTILS::nearEdges(m_frame.size(), oldObj.m_bboxes.back())) {
 
-							static CMotionTracker trackerOptycal;
-							cv::Rect trackBox = trackerOptycal.track(m_frame, m_prevFrame, resizeBBox(oldObj.m_bboxes.back(), m_frame.size(), 2.0));
+							static CMotionTracker trackerOptical;
+							cv::Rect trackBox = trackerOptical.track(m_frame, m_prevFrame, resizeBBox(oldObj.m_bboxes.back(), m_frame.size(), 2.0));
 							if (!trackBox.empty()) {
 								newBox = moveByCenter(oldObj.m_bboxes.back(), centerOf(trackBox)); // use trtacker box just for its center 
-								detectionType = DET_TYPE::OptycalFlow;
+								detectionType = DET_TYPE::OpticalFlow;
 							}
 						}
 
-						// Otherwise : Matched by Prediction
-						if (detectionType == DET_TYPE::DETECTION_NA) {
+						// -3- Otherwise : Matched by Prediction
+						//----------------------------------------
+						if (detectionType == DET_TYPE::DETECTION_NA && oldObj.m_detectionStatus >= STAGE::SENIOR) {
 							newBox = predictNext(oldObj, newROIs[i], detectionType); // match by prediction 
+							match[i]++;
 						}
 
-						
 						oldObj.add(newBox, m_frameNum, detectionType);
 						break; // loop termination state 						
 					}
 				}
 			}
+			objInd++;
 		}
 	
 
-		// A new objects if no match found
-		for (int i = 0; i < match.size(); i++) {
-			if (match[i] == 0) {
+		// *** A new objects if no match found
+		for (int i = 0; i < match.size(); i++) 
+			if (match[i] == 0) 
 				m_objects.push_back(CObject(newROIs[i], m_frameNum));
-				//m_objects.back().m_label = labels[i];
-			}
-		}
+		
 
 		return (int)match.size() - cv::countNonZero(match);
 
@@ -613,31 +606,38 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 		// Set stability score
 		for (auto &obj : m_objects) {
-			obj.m_detectionScore = AGE::STARTER;
-			if (obj.len() > stableLen  && checkAreStability(obj.m_bboxes, 4))
-				obj.m_detectionScore = AGE::STABLE;
+			obj.m_detectionStatus = STAGE::STARTER;
+			if (obj.len() > stableLen) {
+				if (isStabel(obj, CONSTANTS::StableLen))
+					obj.m_detectionStatus = STAGE::STABLE;
+				else 
+					obj.m_detectionStatus = STAGE::SENIOR;
+
+			}
 			else if (obj.len() > starterLen)
-				obj.m_detectionScore = AGE::FINE;
+				obj.m_detectionStatus = STAGE::FINE;
 		}
 
 #if 0
 		for (auto &obj : m_objects) {
-			obj.m_detectionType = AGE::STARTER;
+			obj.m_detectionType = STAGE::STARTER;
 			if (obj.isTracked(m_frameNum))
-				obj.m_detectionType = AGE::TRACKED;
+				obj.m_detectionType = STAGE::TRACKED;
 			else if (obj.m_lastDetected > m_frameNum - MaxHiddenTrackFrames) // &  not tracked
-				obj.m_detectionType = AGE::HIDDEN;
+				obj.m_detectionType = STAGE::HIDDEN;
 			else if (obj.len() > starterLen) {
-				obj.m_detectionType = AGE::FINE;
+				obj.m_detectionType = STAGE::FINE;
 				if (obj.len() > stableLen) {
 					if (checkAreStability(obj.m_bboxes, 4))
-						obj.m_detectionType = AGE::STABLE;
+						obj.m_detectionType = STAGE::STABLE;
 				}
 			}
 		}
 #endif 
 		// Remove un-detected objects (fade)
 		for (int i = 0; i < m_objects.size(); i++) {
+			if (m_objects[i].m_bboxes.size() > 10)
+				int debug = 10;
 			int hiddenLenAllowed = m_objects[i].m_bboxes.size() < 4 ? 3 : 10;
 			if (m_objects[i].m_lastDetected + hiddenLenAllowed < m_frameNum)
 				m_objects.erase(m_objects.begin() + i--);
@@ -650,157 +650,29 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 	}
 
 
-	int CTrack::detectByTracker(const cv::Mat &frame)
+	/*-----------------------------------------------------------------------
+		Check stability of detection while in last LEN frames:
+		(1) Not (even once) use predicted position
+		(2) Diff for consequences areas are less than 0.3 (CONST!)
+	 -----------------------------------------------------------------------*/
+	bool CTrack::isStabel(const CObject &obj, int len)
 	{
-		int tracked_count = 0;
-		int ind = 0;
-		cv::Rect trackerROI;
 
-		for (auto &obj : m_objects) { 
-				if (obj.m_tracker == NULL && obj.m_detectionType == DET_TYPE::Tracker) {
-					// Set a new tracker 
-					obj.m_tracker = new CTracker;
-					obj.m_tracker->init(m_params.trackerType, 0);
-					//obj.m_tracker->setROI(frame, resizeBBox(obj.m_bboxes.back(),0.7));
-					obj.m_tracker->setROI(frame, obj.m_bboxes.back());
-					obj.m_tracker->setROI(frame, obj.m_bboxes.back());
-				}
-				else if (obj.isTracked()) {
-					if (obj.m_tracker->track(frame)) {
-						trackerROI = obj.m_tracker->getBBox();
-						UTILS::checkBounderies(trackerROI, frame.size());
-						obj.add(trackerROI, m_frameNum, DET_TYPE::Tracker);
-						//obj.m_lastDetected = m_frameNum;
-						tracked_count++;
-					}
-				}
-		}
+		if (obj.m_bboxes.size() < len)
+			return false;
 
-		return tracked_count;
-	}
-
-
-	bool CTrack::detectObjByTracker(const cv::Mat &frame, int objInd)
-	{
-		int tracked_count = 0;
-		int ind = 0;
-		cv::Rect trackerROI;
-		auto &obj = m_objects[objInd];
-
-		if (obj.m_tracker == NULL && obj.m_detectionType == DET_TYPE::Tracker) {
-			// Set a new tracker 
-			obj.m_tracker = new CTracker;
-			obj.m_tracker->init(m_params.trackerType, 0);
-			//obj.m_tracker->setROI(frame, resizeBBox(obj.m_bboxes.back(),0.7));
-			obj.m_tracker->setROI(frame, obj.m_bboxes.back());
-		}
-		else if (obj.isTracked()) {
-			if (obj.m_tracker->track(frame)) {
-				trackerROI = obj.m_tracker->getBBox();
-				UTILS::checkBounderies(trackerROI, frame.size()); // ??? DDEBUG 
-				obj.add(trackerROI, m_frameNum, DET_TYPE::Tracker);
-				//obj.m_lastDetected = m_frameNum;
-				tracked_count++;
-			}
-			else
-				return false;
-		}
-
-		return true;
-	}
-
-	/*--------------------------------------------------------------
-	 * Detect all tracked obj 
-	 --------------------------------------------------------------*/
-	int CTrack::detectByOpticalFlow(const cv::Mat &frame)
-	{
-		int detected = 0;
-		for (int i = 0; i < m_objects.size(); i++)
-			if (detectObjByOpticalFlow(frame, i))
-				detected++;
-
-		return detected;
-	}
-
-
-	/*--------------------------------------------------------------
-	 * Detect a single tracked obj
-	 --------------------------------------------------------------*/
-	bool CTrack::detectObjByOpticalFlow(const cv::Mat &frame, int objInd)
-	{
-		int tracked_count = 0;
-		int ind = 0;
-		cv::Rect trackerROI;
-		auto &obj = m_objects[objInd];
-
-		if (obj.m_motionTracker == NULL && obj.m_detectionType == DET_TYPE::OptycalFlow) {
-			// Set a new tracker 
-			obj.m_motionTracker = new CMotionTracker;
-			obj.m_motionTracker->init(frame.cols, frame.rows);
-
-		}
-		else  if (obj.isMTracked()) {
-			if (obj.m_motionTracker->track(frame, obj.m_bboxes.back())) {
-				trackerROI = obj.m_motionTracker->getBBox();
-				obj.add(trackerROI, m_frameNum, DET_TYPE::OptycalFlow);
-				//obj.m_lastDetected = m_frameNum;
-			}
-			else
-				int debug = 10;
-		}
-
-		return obj.m_lastDetected == m_frameNum;
-	}
-
-
-#if 0
-	int CTrack::detectByTracker_OLD(cv::Mat frame)
-	{
-		int tracked_count = 0;
-		int ind = 0;
-		for (auto tracker : m_trackers)
-		{
-			if (m_params.demoMode == 1 && ind == 6 && m_frameNum == 140)  m_trackers.erase(m_trackers.begin() + ind); // DDEBUG 
-			if (m_params.demoMode == 2 && ind == 3 && m_frameNum == 350)  m_trackers.erase(m_trackers.begin() + ind); // DDEBUG 
-
-			//tracker.reset();
-			if (tracker.isActive())
-				if (tracker.track(frame)) {
-					m_trackerROI = tracker.getBBox();
-					m_objects[ind].add(m_trackerROI, m_frameNum);
-					// Set rect color:
-					cv::Scalar color;
-					if (!m_objects[ind].isMove(10))
-						color = cv::Scalar(100, 200, 250);
-					else
-						color = m_objects[ind].m_label == 1 ? cv::Scalar(0, 200, 100) : cv::Scalar(0, 100, 200);
-
-					// DDEBUG - Expand display of too nerrow tracker-box  
-					if (m_trackerROI.width < 30) {
-						m_trackerROI.x -= (30 - m_trackerROI.width) / 2;
-						m_trackerROI.width = 30;
-					}
-					tracked_count++;
-				}
-			ind++;
-		}
-
-		return tracked_count;
-	}
-#endif 
-
-
-
-	bool CTrack::checkAreStability(std::vector <cv::Rect> bboxes, int len)
-	{
+		int ind = obj.m_bboxes.size() - 1;
+		for (int i = 0; i < len; i++, ind--)
+			if (obj.m_detectionTypes[i] <= DET_TYPE::Prediction)
+			return false;
 
 		// Check for rect stability 
 		int areaDiff = 0;
-		int ind = bboxes.size() - 1;
+		ind = obj.m_bboxes.size() - 1;
 		for (int i = 0; i < len; i++,ind--)
-			areaDiff += bboxes[ind].area() - bboxes[ind - 1].area();
+			areaDiff += obj.m_bboxes[ind].area() - obj.m_bboxes[ind - 1].area();
 		areaDiff = abs(areaDiff);
-		float areaRatio = (float)areaDiff / (float)bboxes.back().area();
+		float areaRatio = (float)areaDiff / (float)obj.m_bboxes.back().area();
 
 		return areaRatio < 0.3;
 	}
@@ -816,7 +688,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		// missing >> : calc 'cut' by clockDirection 
 		float cut = 0.4; // 0.5 of image from left side
 		for (auto &obj : m_objects) {
-			if (obj.m_lastDetected == m_frameNum && obj.m_detectionType == DET_TYPE::BGSeg) {
+			if (obj.m_lastDetected == m_frameNum && obj.m_detectionTypes.back() == DET_TYPE::BGSeg) {
 				int trimSize = int((float)obj.m_bboxes.back().width * (1. - fabs(cut)));
 				obj.m_bboxes.back().width -= trimSize;
 				if (cut < 0)
@@ -851,7 +723,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		cv::Rect sBbox;
 		// missing >> : calc 'cut' by clockDirection 
 		float cut = 0.4; // 0.5 of image from left side
-		//if (obj.m_lastDetected == m_frameNum && obj.m_detectionType < AGE::TRACKED) 
+		//if (obj.m_lastDetected == m_frameNum && obj.m_detectionTypes.back() < STAGE::TRACKED) 
 		{
 			int trimSize = int((float)obj.m_bboxes.back().width * (1. - fabs(cut)));
 			obj.m_bboxes.back().width -= trimSize;
@@ -946,14 +818,14 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		Predict by prev motions
 		Check that predicted rect overlapped the motion rect
 	 -----------------------------------------------------------------------*/
-	 cv::Rect CTrack::predictNext(CObject obj, cv::Rect motionROI, DET_TYPE &type)
+	 cv::Rect CTrack::predictNext(CObject obj, cv::Rect mogROI, DET_TYPE &type)
 	{
-		 const int predictionDepth = 4;
-		 const float OverLappedRATIO = 0.7;
+		 const int PredictionDepth = 4;
+		 const float MinOverLappedRatio = 0.2;
 		 if (obj.m_bboxes.size() < 2)
 			 return obj.m_bboxes.back();
 		 
-		 int steps = MIN(predictionDepth, obj.m_bboxes.size() - 1);
+		 int steps = MIN(PredictionDepth, obj.m_bboxes.size() - 1);
 		 int lastInd = obj.m_bboxes.size() - 1;
 		 
 		 cv::Point motion;
@@ -975,15 +847,153 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			meanAcc = std::accumulate(accel.begin(), accel.end(), cv::Point2f(0, 0)) / (float)accel.size();
 
 		 cv::Point2f meanMotion = meanVel + meanAcc;
+		 cv::Rect predictBox = obj.m_bboxes[lastInd] + cv::Point((int)meanMotion.x, (int)meanMotion.y);
 
-		 //cv::Point2f motion2f = cv::Point2f(motion.x, motion.y)  / (float)steps;
-
-		 cv::Rect newBox = obj.m_bboxes[lastInd] + cv::Point((int)meanMotion.x, (int)meanMotion.y);
-
-		 if (bboxesOverlapping(newBox, motionROI) < OverLappedRATIO)
+		 // Require minimal overlapping for none-hidden type 
+		 if (bboxesOverlapping(predictBox, mogROI) > MinOverLappedRatio) {
+			 //predictBox = predictBox & mogROI; // Update size with real ROI
 			 type = DET_TYPE::Prediction;
+		 }
 		 else
 			 type = DET_TYPE::Hidden;
 
-		return newBox;
+		return predictBox;
 	}
+
+#if 0
+
+	 /*---------------------------------------------------------------
+	  * Track all given ROI's by Tracker.
+	  * Add new tracker by frameNuym within the m_roiList structure
+	 ----------------------------------------------------------------*/
+	 int 	CTrack::trackByROI(cv::Mat frame)
+	 {
+		 ////>>>> tracking by ROI file:
+		 // DDEBUG : init tracker from file's list 
+		 for (auto &roi : m_roiList) {
+			 // Add the new tracker
+			 if (m_frameNum == roi.frameNum) {
+				 CTracker *newTracker = new CTracker;
+				 m_trackers.push_back(*newTracker);
+				 m_trackers.back().init(m_params.trackerType, 0);
+				 m_trackers.back().setROI(frame, roi.bbox);
+				 roi.frameNum *= -1; // sign as nonactive 
+				 // Add additionla obj data
+				 int objLabel = roi.bbox.width > 70 ? 2 : 1; // classifies obj by ROI size + DDEBUG CONST  
+				 m_objects.push_back(CObject(roi.bbox, m_frameNum));
+				 //roiList.erase(roiList.begin()+ind); // remove from init list 
+			 }
+		 }
+
+		 int tracked_count = detectByTracker(frame);
+		 return tracked_count;
+	 }
+
+
+
+
+	 // UNUSED FUNCTIONS :
+
+	 int CTrack::detectByTracker(const cv::Mat &frame)
+	 {
+		 int tracked_count = 0;
+		 int ind = 0;
+		 cv::Rect trackerROI;
+
+		 for (auto &obj : m_objects) {
+			 if (obj.m_tracker == NULL && obj.m_detectionTypes.back() == DET_TYPE::Tracker) {
+				 // Set a new tracker 
+				 obj.m_tracker = new CTracker;
+				 obj.m_tracker->init(m_params.trackerType, 0);
+				 //obj.m_tracker->setROI(frame, resizeBBox(obj.m_bboxes.back(),0.7));
+				 obj.m_tracker->setROI(frame, obj.m_bboxes.back());
+				 obj.m_tracker->setROI(frame, obj.m_bboxes.back());
+			 }
+			 else if (obj.isTracked()) {
+				 if (obj.m_tracker->track(frame)) {
+					 trackerROI = obj.m_tracker->getBBox();
+					 UTILS::checkBounderies(trackerROI, frame.size());
+					 obj.add(trackerROI, m_frameNum, DET_TYPE::Tracker);
+					 //obj.m_lastDetected = m_frameNum;
+					 tracked_count++;
+				 }
+			 }
+		 }
+
+		 return tracked_count;
+	 }
+
+
+	 bool CTrack::detectObjByTracker(const cv::Mat &frame, int objInd)
+	 {
+		 int tracked_count = 0;
+		 int ind = 0;
+		 cv::Rect trackerROI;
+		 auto &obj = m_objects[objInd];
+
+		 if (obj.m_tracker == NULL && obj.m_detectionTypes.back() == DET_TYPE::Tracker) {
+			 // Set a new tracker 
+			 obj.m_tracker = new CTracker;
+			 obj.m_tracker->init(m_params.trackerType, 0);
+			 //obj.m_tracker->setROI(frame, resizeBBox(obj.m_bboxes.back(),0.7));
+			 obj.m_tracker->setROI(frame, obj.m_bboxes.back());
+		 }
+		 else if (obj.isTracked()) {
+			 if (obj.m_tracker->track(frame)) {
+				 trackerROI = obj.m_tracker->getBBox();
+				 UTILS::checkBounderies(trackerROI, frame.size()); // ??? DDEBUG 
+				 obj.add(trackerROI, m_frameNum, DET_TYPE::Tracker);
+				 //obj.m_lastDetected = m_frameNum;
+				 tracked_count++;
+			 }
+			 else
+				 return false;
+		 }
+
+		 return true;
+	 }
+
+	 /*--------------------------------------------------------------
+	  * Detect all tracked obj
+	  --------------------------------------------------------------*/
+	 int CTrack::detectByOpticalFlow(const cv::Mat &frame)
+	 {
+		 int detected = 0;
+		 for (int i = 0; i < m_objects.size(); i++)
+			 if (detectObjByOpticalFlow(frame, i))
+				 detected++;
+
+		 return detected;
+	 }
+
+
+	 /*--------------------------------------------------------------
+	  * Detect a single tracked obj
+	  --------------------------------------------------------------*/
+	 bool CTrack::detectObjByOpticalFlow(const cv::Mat &frame, int objInd)
+	 {
+		 int tracked_count = 0;
+		 int ind = 0;
+		 cv::Rect trackerROI;
+		 auto &obj = m_objects[objInd];
+
+		 if (obj.m_motionTracker == NULL && obj.m_detectionTypes.back() == DET_TYPE::OpticalFlow) {
+			 // Set a new tracker 
+			 obj.m_motionTracker = new CMotionTracker;
+			 obj.m_motionTracker->init(frame.cols, frame.rows);
+		 }
+		 else  if (obj.isMTracked()) {
+			 if (obj.m_motionTracker->track(frame, obj.m_bboxes.back())) {
+				 trackerROI = obj.m_motionTracker->getBBox();
+				 obj.add(trackerROI, m_frameNum, DET_TYPE::OpticalFlow);
+				 //obj.m_lastDetected = m_frameNum;
+			 }
+			 else
+				 int debug = 10;
+		 }
+
+		 return obj.m_lastDetected == m_frameNum;
+	 }
+
+
+#endif 
