@@ -9,6 +9,7 @@
 #include "opencv2/highgui.hpp"
 
 #include "mog.hpp"
+#include "prediction.hpp"
 #include "CObject.hpp"
 
 
@@ -49,7 +50,7 @@ private:
 
 	bool isStabel(const CObject &obj, int len);
 
-	int matchObjects(std::vector<cv::Rect> newROIs);
+	std::vector <int> matchObjects(std::vector<cv::Rect> newROIs);
 	int matchObjects_OLD(std::vector<cv::Rect> newROIs, std::vector<LABEL> lables);
 	void consolidateDetection();
 	void removeShadows(float shadowClockDirection);
@@ -59,6 +60,7 @@ private:
 	//void classify();
 	std::vector<LABEL>   classify(cv::Mat img, cv::Mat bgMask, std::vector <cv::Rect>  rois);
 	LABEL   classify(cv::Mat img, cv::Mat bgMask, cv::Rect  rois);
+	cv::Rect predict(CObject obj);
 	cv::Rect predictNext(CObject obj, cv::Rect overlappedROI, DET_TYPE &type);
 
 	int trackByROI(cv::Mat frame);
@@ -92,5 +94,8 @@ private:
 	std::vector<CObject>       m_objects;
 	std::vector <CRoi2frame>  m_roiList;
 	Config m_params;
+
+	// Detection classes:
+	std::vector <CPredict>  m_predictions;
 
 };

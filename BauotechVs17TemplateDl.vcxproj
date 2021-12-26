@@ -178,8 +178,11 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="hungarian2.cpp" />
+    <ClCompile Include="Kalman.cpp" />
+    <ClCompile Include="Kalman2.cpp" />
     <ClCompile Include="mog.cpp" />
     <ClCompile Include="MoitionTrack.cpp" />
+    <ClCompile Include="prediction.cpp" />
     <ClCompile Include="trackerBasic.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>

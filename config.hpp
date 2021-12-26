@@ -7,6 +7,9 @@ namespace CONSTANTS {
 	int const motionDetectionFPS = DetectionFPS;
 	int const MogEmphasizeFactor = 1;
 	int const StableLen = 4;
+	int const minLenForPrediction = 10; 
+	int const maxLenForPrediction = FPS; 
+	int const StableLenForPrediction = minLenForPrediction+10; // Prediction doesn't usethe first 10 unstable frames
 
 	/*
 	int const KEEP_ALIVE_SEC = 5;
@@ -35,6 +38,7 @@ struct Config
 	std::string videoName;
 	std::string roisName;
 	int trackerType = 0;
+	int prediction = 1;
 	int onlineTracker = 0;
 	int debugLevel = 0;
 	float scale = 0.5;

@@ -17,6 +17,7 @@
 #include "mog.hpp"
 #include "trackerBasic.hpp"
 #include "MotionTrack.hpp"
+#include "prediction.hpp"
 
 #include "algoTracker.hpp"
 
@@ -48,6 +49,8 @@
 #pragma comment(lib, "opencv_features2d430.lib")
 #endif
 
+// GLOBALS:
+CPredict   prediction;
 
 /*---------------------------------------------------------------------------------------------
 								U T I L S
@@ -101,6 +104,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 	conf.MvarThreshold = pt.get<float>("ALGO.MvarThreshold", conf.MvarThreshold);
 	conf.MlearningRate = pt.get<float>("ALGO.MlearningRate", conf.MlearningRate);
 	conf.trackerType = pt.get<int>("ALGO.tracker", conf.trackerType);
+	conf.prediction = pt.get<int>("ALGO.predict", conf.prediction);
 	conf.onlineTracker = pt.get<int>("ALGO.onlineTracker", conf.onlineTracker);
 
 
@@ -206,32 +210,50 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 				//std::vector<LABEL>   labels = classify(sFrame, m_bgMask, newROIs);
 				if (m_params.shadowclockDirection > 0)
-					removeShadows(newROIs,  m_params.shadowclockDirection, std::vector<LABEL>());
-				matchObjects(newROIs); // match blobs to existing objects 
-			}
-		}
+					removeShadows(newROIs, m_params.shadowclockDirection, std::vector<LABEL>());
 
-#if 0
-		// OLD tracker - now in Match() function
-		if (m_params.trackerType > 0) // optical flow
-		for (int i = 0; i < m_objects.size(); i++) {
-			if (m_objects[i].m_lastDetected < m_frameNum)  // try tracking if was not detected by mog
-			{				
-				if (m_params.trackerType == 10)
-					detectObjByOpticalFlow(frame, i);
-				else 
-					detectObjByTracker(frame, i);
+				std::vector <int> matchVec = matchObjects(newROIs); // match blobs to existing objects 
+
+				// *** A new objects if no match found
+				for (int i = 0; i < matchVec.size(); i++) {
+					if (matchVec[i] == 0) {
+						float overLappedRatio = 0;
+						// check for overlapping 
+						for (int o = 0; o < m_objects.size(); o++) {
+							overLappedRatio = maxBboxesBounding(newROIs[i], m_objects[o].m_bboxes.back());
+							if (overLappedRatio > 0.3) // DDEBUG CONST 
+								break; // Don't make a new Obj from ROI in case its overlapped other obj 
+						}
+
+						if (overLappedRatio <= 0.3) { // Don't make a new Obj from ROI in case its overlapped other obj 
+							m_objects.push_back(CObject(newROIs[i], m_frameNum));
+							m_predictions.push_back(CPredict());
+						}
+					}
+				}
 			}
-		}
+#if 0
+			// OLD tracker - now in Match() function
+			if (m_params.trackerType > 0) // optical flow
+				for (int i = 0; i < m_objects.size(); i++) {
+					if (m_objects[i].m_lastDetected < m_frameNum)  // try tracking if was not detected by mog
+					{
+						if (m_params.trackerType == 10)
+							detectObjByOpticalFlow(frame, i);
+						else
+							detectObjByTracker(frame, i);
+					}
+				}
 #endif 
 
-		// -3- consolidate detection
-		//------------------------------------
-		consolidateDetection();
+			// -3- consolidate detection
+			//------------------------------------
+			consolidateDetection();
 
-		//trackByROI(frame);
+			//trackByROI(frame);
 
-		m_prevFrame = m_frame.clone();
+			m_prevFrame = m_frame.clone();
+		}
 
 		return tracked_count;
 	}
@@ -369,7 +391,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			// color = setColorByLabel(LABEL(m_objects[i].m_label));
 
 			//cv::rectangle(display, resizeBBox(m_objects[i].m_bboxes.back(),0.6) , color);
-			cv::Rect bbox = scaleBBox(m_objects[i].m_bboxes.back(), scale);
+			cv::Rect2f bbox = scaleBBox(m_objects[i].m_bboxes.back(), scale);
 			cv::rectangle(display, bbox, color);
 
 			if (m_objects[i].m_detectionTypes.back() == DET_TYPE::Tracker)
@@ -473,11 +495,13 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 	 * Match RECTs to exiting m_objects
 	 * If newROI matched update BBOX
 	 * unless this bbox already updated (by tracker)
-	 * If no match was found:  Add a new to m_objects
-	 * Return number of new objects
+	 * Return matches vecotor (0 or 1 for each newROI)
 	 *-----------------------------------------------------------*/
-	int CTrack::matchObjects(std::vector<cv::Rect> newROIs)
+	std::vector <int> CTrack::matchObjects(std::vector<cv::Rect> newROIs)
 	{
+		const float MinOverLappedRatio = 0.5;
+		const float GoodOverLappedRatio = 0.7;
+		const float GoodSizeRatio = 0.7;
 		/*-------------------------------------------
 		 * match new objects to the new ones
 		 * Check box overlapping to match new & old
@@ -487,24 +511,136 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		int OVERLAPPED = 1; // but area don't match 
 		int MATCH = 2;
 		*/
+
 		std::vector <int> match(newROIs.size(), 0);
 		//match.assign(newROIs.size(), 0);
 		int objInd = 0;
 		for (auto &oldObj : m_objects) {
-			if (oldObj.m_lastDetected == m_frameNum)  
+			if (oldObj.m_lastDetected == m_frameNum)
 				continue;  // already detected by other algo (tracker etc.)
 
-			if (objInd == 1)
-				int debug = 10;
+			cv::Rect predictBox;
+			cv::Rect newBox;
+			DET_TYPE detectionType = DET_TYPE::DETECTION_NA;
+			float bestOverLapped = 0;
+
 
 			for (int i = 0; i < newROIs.size(); i++) {
-				if (/*match[i] == 0 &&*/ (newROIs[i] & oldObj.m_bboxes.back()).area() > 0) { // RECT TOUCH 
+				// Case 1 (best) - rect overlapped 
+				//---------------------------------
+				if (/*match[i] == 0 &&*/ (newROIs[i] & cv::Rect(oldObj.m_bboxes.back())).area() > 0) { 
+					// Special treat to young object (dont use prediction)
+					// only matched by boxes Similarity
+					//-------------------------------------------------------					
+					if (bboxRatio(newROIs[i], oldObj.m_bboxes.back()) > 0.7) { // two boxes over-lappeded and with similar size 
+						newBox = newROIs[i]; // match by box similarity 
+						detectionType = DET_TYPE::BGSeg;
+						match[i]++; // Allow multiple matching 
+						break; // out of ROI loop 
+					}
+					else if (oldObj.len() < CONSTANTS::StableLenForPrediction)
+						break; // // out of ROI loop  - dont predict young tracks
+#if 0
+					else if (m_params.onlineTracker > 0 && oldObj.m_detectionStatus >= STAGE::STABLE &&
+						!UTILS::nearEdges(m_frame.size(), oldObj.m_bboxes.back())) {
+						// -2- Matched by Tracker (Optical)
+						//----------------------------------
+						static CMotionTracker trackerOptical;
+						cv::Rect trackBox = trackerOptical.track(m_frame, m_prevFrame, resizeBBox(oldObj.m_bboxes.back(), m_frame.size(), 2.0));
+						if (!trackBox.empty()) {
+							newBox = moveByCenter(oldObj.m_bboxes.back(), centerOf(trackBox)); // use trtacker box just for its center 
+							detectionType = DET_TYPE::OpticalFlow;
+							match[i]++; // Allow multiple matching 
+							break; // out of ROI loop 
+						}
+					}
+#endif 
+					else if (m_params.prediction > 0) {
+						// Case 2  - rects dont overlapped - use prediction 
+						//---------------------------------
+						float confidence;
+						//predictBox = m_predictions[objInd].predictKF(oldObj, confidence);
+						cv::Point2f predictCenter = m_predictions[objInd].predictKF2(oldObj, confidence);
+						predictBox = moveByCenter(oldObj.m_bboxes.back(), predictCenter);
 
-					//match[i] = 1; // Mark this ROI as matched , or just ignore (in case low overlapping area)
-					//if (bboxesOverlapping(newROIs[i], oldObj.m_bboxes.back()) > 0.5) 
+						if (0) // TEST TEST 
+						{
+							std::vector <cv::Point2f> predictVec;
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+							predictVec.push_back(m_predictions[objInd].predictKF2(oldObj, confidence));
+
+						}
+
+						float curOverLapped = bboxesBounding(predictBox, newROIs[i]); // predictBox bounding-ratio inside newROI
+
+						// -2- Accepatable match
+						if (curOverLapped > MinOverLappedRatio)  
+						{
+							newBox = predictBox;
+							//newBox = predictBox & newROIs[i];
+							detectionType = DET_TYPE::Prediction;
+							match[i]++; // Allow multiple matching 
+							break; // out of ROI loop 
+						}
+						else
+							std::cout << "Predicted object got lost here ! \n";
+					}
+				}
+			} // ROI loop 
+#if 0
+				else if (1) {
+					// More amatured object - use prediction:
+					predictBox = predict(oldObj);
+
+					float curOverLapped = bboxesBounding(predictBox, newROIs[i]); // predictBox bounding-ratio inside newROI
+					float boxSimilarity = bboxRatio(predictBox, newROIs[i]);
+
+					if (bestOverLapped < curOverLapped) { // better overlapping
+						bestOverLapped = curOverLapped;
+
+						// -2- Accepatable match
+						if (curOverLapped > MinOverLappedRatio) {
+							newBox = predictBox;
+							//newBox = predictBox & newROIs[i];
+							detectionType = DET_TYPE::Prediction;
+						}
+						// -3- Poor match
+						else {
+							newBox = predictBox;
+							detectionType = DET_TYPE::Hidden;
+						}
+					}
+			}
+		} // predict
+#endif 
+
+		std::cout << "----\n";
+		if (1) // DDEBUG TEST 
+		{
+			for (int i = 0; i < m_objects.size(); i++) {
+				for (int j = i + 1; j < m_objects.size(); j++) {
+					float overLappedRatio = maxBboxesBounding(m_objects[i].m_bboxes.back(), m_objects[j].m_bboxes.back());
+					if (overLappedRatio > 0.3)
+						std::cout << "overlapping objects: " << i << " , " << j << "\n";
+				}
+			}
+		}
+					
+			if (detectionType > DET_TYPE::DETECTION_NA) 
+				oldObj.add(newBox, m_frameNum, detectionType);
+			else
+				std::cout << "we lost an object \n";
+
+			objInd++;
+		}
+#if 0
 					{
-						cv::Rect newBox;
-						DET_TYPE detectionType = DET_TYPE::DETECTION_NA;
 
 						// -1- Matched by boxes Similarity 
 						//----------------------------------
@@ -516,7 +652,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 						// -2- Matched by Tracker (Optical)
 						//----------------------------------
-						else if (m_params.onlineTracker > 0 &&  oldObj.m_detectionStatus >= STAGE::STABLE &&
+						else if (m_params.onlineTracker > 0 && oldObj.m_detectionStatus >= STAGE::STABLE &&
 							!UTILS::nearEdges(m_frame.size(), oldObj.m_bboxes.back())) {
 
 							static CMotionTracker trackerOptical;
@@ -541,8 +677,11 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			}
 			objInd++;
 		}
+#endif 
 	
+		return match;
 
+		/*
 		// *** A new objects if no match found
 		for (int i = 0; i < match.size(); i++) 
 			if (match[i] == 0) 
@@ -550,6 +689,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		
 
 		return (int)match.size() - cv::countNonZero(match);
+		*/
 
 	}
 
@@ -814,6 +954,110 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		}
 	}
 
+
+#if 0
+	/*-----------------------------------------------------------------------
+	Predict by prev motions
+	Check that predicted rect overlapped the motion rect
+ -----------------------------------------------------------------------*/
+	cv::Rect CTrack::predict(CObject obj)
+	{
+		//int skip = 2; // optimize motion step - increase motion speed
+		const int PredictionDepth = CONSTANTS::FPS;  
+		const float MinOverLappedRatio = 0.2;
+		const int BackStepsForMotion = 10;
+
+		if (obj.m_bboxes.size() < 2)
+			return obj.m_bboxes.back();
+
+		int steps = MIN(PredictionDepth, obj.m_bboxes.size() - 1);
+		int lastInd = obj.m_bboxes.size() - 1;
+		cv::Rect predictBox;
+
+
+		int predictionMethod = 3; // <<<--------  DDEBUG 
+
+		if (predictionMethod == 1) {
+			cv::Point motion;
+			std::vector <cv::Point2f> motion2f;
+			std::vector <cv::Point2f> accel;
+
+			for (int i = 0; i < steps; i++) {
+				motion = centerOf(obj.m_bboxes[lastInd - i]) - centerOf(obj.m_bboxes[lastInd - i - 1]);
+				motion2f.push_back(cv::Point2f(motion.x, motion.y));
+			}
+
+			for (int j = 0; j < motion2f.size() - 1; j++)
+				accel.push_back(motion2f[j + 1] - motion2f[j]);
+
+			cv::Point2f meanMotion;
+			cv::Point2f meanVel = std::accumulate(motion2f.begin(), motion2f.end(), cv::Point2f(0, 0)) / (float)motion2f.size();
+			cv::Point2f meanAcc(0, 0);
+			
+			bool useAcceleration = false;
+			if (useAcceleration) {
+				cv::Point2f meanAcc(0, 0);
+				if (!accel.empty())
+					meanAcc = std::accumulate(accel.begin(), accel.end(), cv::Point2f(0, 0)) / (float)accel.size();
+			}
+
+			meanMotion = meanVel + meanAcc;
+
+
+			predictBox = obj.m_bboxes[lastInd] + cv::Point((int)meanMotion.x, (int)meanMotion.y);
+			//if (meanMotion.x < 1. || meanMotion.y < 1.) ......
+		}
+		if (predictionMethod == 10) {
+			int steps = MIN(PredictionDepth, obj.m_bboxes.size() - 1);
+			int lastInd = obj.m_bboxes.size() - 1;
+
+			cv::Point2f motion10steps = centerOf2f(obj.m_bboxes[lastInd]) - centerOf2f(obj.m_bboxes[lastInd - 10]);
+			cv::Point2f motion1step = motion10steps / 10.;
+			predictBox = obj.m_bboxes[lastInd] + cv::Point(motion1step);
+		}
+		else 
+		{
+			// init motion vectors
+			vector<double> iData, xData, yData;
+			int fromIndex = obj.m_bboxes.size() - steps - 1;
+			int ii = fromIndex;
+			for (; ii < obj.m_bboxes.size(); ii++) {
+				iData.push_back(double(ii));
+				xData.push_back(centerOf2f(obj.m_bboxes[ii]).x);
+				yData.push_back(centerOf2f(obj.m_bboxes[ii]).y);
+			}
+			double predictX, predictY;
+
+			if (predictionMethod == 2) {			//boost::math::interpolators::cardinal_cubic_b_spline<double> spline(xData.begin(), f.end(), x0, dx);
+
+
+				bool extrapolate = true;
+				predictX = interpolate(iData, xData, double(ii), extrapolate);
+				predictY = interpolate(iData, yData, double(ii), extrapolate);
+
+				//predictBox = moveByCenter(obj.m_bboxes[lastInd], cv::Point((int)predictX1, (int)predictY1));
+
+				//cv::Point2f meanMotion2 = cv::Point((int)predictX, (int)predictY) - centerOf(obj.m_bboxes[lastInd]);
+			}
+			else if (predictionMethod == 3) {
+				std::vector<double> xx;
+				xx.push_back(ii);
+				std::vector<double> predictXX = interpolation2(iData, xData, xx);
+				std::vector<double> predictYY = interpolation2(iData, yData, xx);
+
+				predictX = predictXX[0];
+				predictY = predictYY[0];
+			}
+
+			predictBox = moveByCenter(obj.m_bboxes[lastInd], cv::Point((int)predictX, (int)predictY));
+
+		}
+
+
+
+		return predictBox;
+	}
+
 	/*-----------------------------------------------------------------------
 		Predict by prev motions
 		Check that predicted rect overlapped the motion rect
@@ -850,7 +1094,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		 cv::Rect predictBox = obj.m_bboxes[lastInd] + cv::Point((int)meanMotion.x, (int)meanMotion.y);
 
 		 // Require minimal overlapping for none-hidden type 
-		 if (bboxesOverlapping(predictBox, mogROI) > MinOverLappedRatio) {
+		 if (bboxesBounding(predictBox, mogROI) > MinOverLappedRatio) {
 			 //predictBox = predictBox & mogROI; // Update size with real ROI
 			 type = DET_TYPE::Prediction;
 		 }
@@ -859,6 +1103,8 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 		return predictBox;
 	}
+
+#endif 
 
 #if 0
 

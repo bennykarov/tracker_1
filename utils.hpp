@@ -53,11 +53,13 @@ enum ANGLES {
 inline cv::Point3f  RAD2DEG_vec3f(cv::Point3f radVec) { return cv::Point3f(RAD2DEG(radVec.x), RAD2DEG(radVec.y), RAD2DEG(radVec.z)); }
 inline std::vector <float> RAD2DEG_vec(std::vector <float>  radVec) { std::vector <float>  degVec;  for (auto &rad : radVec) degVec.push_back(RAD2DEG(rad)); return degVec; }
 
-cv::Point centerOf(cv::Rect r);// { return (r.br() + r.tl())*0.5; }
-cv::Rect  moveByCenter(cv::Rect r, cv::Point center);
+
+cv::Rect2f  moveByCenter(cv::Rect2f r, cv::Point2f center);
 inline cv::Point2f centerOf(cv::Rect2f r) { return (r.br() + r.tl())*0.5; }
+inline int areaOf(cv::Rect2f r) { return int(r.width + r.height); }
+
 inline bool isEmpty(cv::RotatedRect rr) { return (rr.size.width == 0 || rr.size.height == 0); }
-inline bool isEmpty(cv::Rect r) { return (r.width == 0 || r.height == 0); }
+inline bool isEmpty(cv::Rect2f r) { return (r.width == 0 || r.height == 0); }
 
 
 #define TICKFREQUENCY 1000.
@@ -127,6 +129,17 @@ private:
 		 if (box.y + box.height >= imgSize.height)
 			 box.height = imgSize.height - box.y - 1;
 	 }
+	 static void   checkBounderies(cv::Rect2f  &box, cv::Size imgSize)
+	 {
+		 if (box.x < 0)
+			 box.x = 0;
+		 if (box.y < 0)
+			 box.y = 0;
+		 if (box.x + box.width >= (float)imgSize.width)
+			 box.width = (float)imgSize.width - box.x - 1.;
+		 if (box.y + box.height >= (float)imgSize.height)
+			 box.height = (float)imgSize.height - box.y - 1.;
+	 }
 
 	 static bool nearEdges(cv::Size size, cv::Rect box);
 
@@ -140,6 +153,10 @@ private:
 	 }	 return false; }
  std::wstring stringToWstring(const std::string& t_str);
  int debug_imshow(std::string title, cv::Mat img, double scale = 0, int waitTime = -1);
+
+// MATH UTILS 
+ double interpolate(vector<double> &xData, vector<double> &yData, double x, bool extrapolate);
+ std::vector<double> interpolation2(std::vector<double> x, std::vector<double> y, std::vector<double> xx);
 
 
 
@@ -182,11 +199,14 @@ private:
 
 
  // RECT utilities 
- bool isIn(cv::Point hitPixel, cv::Rect  roi);
- cv::Rect extendBBox(cv::Rect rect_, cv::Point p);
- cv::Rect scaleBBox(cv::Rect rect, float scale);
- float    bboxRatio(cv::Rect r1, cv::Rect r2);
- cv::Rect resizeBBox(cv::Rect rect, float scale);
- cv::Rect resizeBBox(cv::Rect rect, cv::Size size, float scale);
- float bboxesOverlapping(cv::Rect r1, cv::Rect r2); // Ratio of overlapping 
+ bool isIn(cv::Point hitPixel, cv::Rect2f  roi);
+ cv::Rect2f extendBBox(cv::Rect2f rect_, cv::Point2f p);
+ cv::Rect2f scaleBBox(cv::Rect2f rect, float scale);
+ float    bboxRatio(cv::Rect2f r1, cv::Rect2f r2);
+ cv::Rect2f resizeBBox(cv::Rect2f rect, float scale);
+ cv::Rect2f resizeBBox(cv::Rect2f rect, cv::Size size, float scale);
+ 
+ 
+ float bboxesBounding(cv::Rect2f r1, cv::Rect2f r2); // Ratio of r1 overlapping r2
+ float maxBboxesBounding(cv::Rect2f r1, cv::Rect2f r2); // Ratio of overlapping (bi directional)
 

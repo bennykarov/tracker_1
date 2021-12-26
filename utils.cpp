@@ -628,7 +628,8 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
   }
 
 
-
+#if 0
+  // cv::Rect (12f) utils :
   cv::Rect extendBBox(cv::Rect rect_, cv::Point p)
   {
 	  if (rect_.empty())
@@ -718,15 +719,25 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  return area1 > area2 ? (float)area2 / (float)area1 : (float)area1 / (float)area2;
   }
 
-  // Ratio of verlapped of two rect's
-  float bboxesOverlapping(cv::Rect r1, cv::Rect r2)
+  // Ratio of r1 inside r2
+  float bboxesBounding(cv::Rect2f r1, cv::Rect2f r2)
   {
-	  cv::Rect overlappedBox = r1 & r2;
+	  cv::Rect2f overlappedBox = r1 & r2;
 	  if (overlappedBox.area() == 0)
 		  return 0;
 
 	  return (float)overlappedBox.area() / (float)r1.area();
 	  //return r1.area() > r2.area() ? bboxRatio(r2, overlappedBox) : bboxRatio(r1, overlappedBox);
+  }
+  // Max Ratio of r1 & r2 overlapping 
+  float maxBboxesBounding(cv::Rect2f r1, cv::Rect2f r2)
+  {
+	  cv::Rect2f overlappedBox = r1 & r2;
+	  int overlappedArea = overlappedBox.area();
+	  if (overlappedArea == 0)
+		  return 0;
+
+	  return   r1.area() < r2.area() ? overlappedArea / r1.area() : overlappedArea / r2.area();
   }
 
 
@@ -735,9 +746,219 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  return (r.br() + r.tl())*0.5; 
   }
 
+  cv::Point2f centerOf2f(cv::Rect r)
+  {
+	  return (cv::Point2f(r.br() + r.tl())*0.5);
+  }
+
+
   cv::Rect moveByCenter(cv::Rect r, cv::Point center)
   {
-	  r.x = center.x - r.width / 2;
-	  r.y = center.y - r.height / 2;
-	  return r;
+	  cv::Rect newR = r;
+	  newR.x = center.x - int((float)r.width / 2.);
+	  newR.y = center.y - int((float)r.height / 2.);
+	  return newR;
+  }
+#endif 
+
+
+  cv::Rect2f moveByCenter(cv::Rect2f r, cv::Point2f center)
+  {
+	  cv::Rect2f newR = r;
+	  newR.x = center.x - r.width / 2.;
+	  newR.y = center.y - r.height / 2.;
+	  return newR;
+  }
+
+
+
+  cv::Rect2f extendBBox(cv::Rect2f rect_, cv::Point p)
+  {
+	  if (rect_.empty())
+		  return cv::Rect2f(p.x - 1., p.y - 1., 3., 3.);
+
+	  cv::Rect2f rect = rect_;
+	  if (p.x < rect.x) {
+		  rect.width += rect.x - p.x;
+		  rect.x = p.x;
+	  }
+	  else if (p.x > rect.x + rect.width) {
+		  rect.width = p.x - rect.x + 1.;
+	  }
+
+
+	  if (p.y < rect.y) {
+		  rect.height += rect.y - p.y;
+		  rect.y = p.y;
+	  }
+	  else if (p.y > rect.y + rect.height) {
+		  rect.height = p.y - rect.y + 1.;
+	  }
+
+	  return rect;
+
+  }
+
+
+
+  cv::Rect2f scaleBBox(cv::Rect2f rect, float scale)
+  {
+	  cv::Rect2f sBBox;
+
+	  sBBox.width = rect.width * scale;
+	  sBBox.height = rect.height* scale;
+	  sBBox.x = rect.x * scale;
+	  sBBox.y = rect.y * scale;
+
+	  return sBBox;
+
+  }
+
+  cv::Rect2f resizeBBox(cv::Rect2f rect, float scale)
+  {
+	  cv::Rect2f sBBox;
+
+	  sBBox = rect;
+	  float  wDiff = rect.width * (1. - scale);
+	  float hDiff = rect.height * (1. - scale);
+	  sBBox.width -= wDiff;
+	  sBBox.height -= hDiff;
+	  sBBox.x += wDiff / 2.;
+	  sBBox.y += hDiff / 2.;
+
+	  return sBBox;
+
+  }
+
+
+  // Resize with bopunderies check for resized box
+  cv::Rect2f resizeBBox(cv::Rect2f rect, cv::Size size, float scale)
+  {
+	  cv::Rect2f sBBox;
+
+	  sBBox = rect;
+	  float wDiff = rect.width * (1. - scale);
+	  float hDiff = rect.height * (1. - scale);
+	  sBBox.width -= wDiff;
+	  sBBox.height -= hDiff;
+	  sBBox.x += wDiff / 2.;
+	  sBBox.y += hDiff / 2.;
+
+	  UTILS::checkBounderies(sBBox, size);
+
+	  return sBBox;
+
+  }
+
+
+
+  // Ratio of RECTs area ( < 1 )
+  float bboxRatio(cv::Rect2f r1, cv::Rect2f r2)
+  {
+	  int area1 = r1.area();
+	  int area2 = r2.area();
+
+	  return area1 > area2 ? (float)area2 / (float)area1 : (float)area1 / (float)area2;
+  }
+
+  // Ratio of r1 inside r2
+  float bboxesBounding(cv::Rect2f r1, cv::Rect2f r2)
+  {
+	  cv::Rect2f overlappedBox = r1 & r2;
+	  if (overlappedBox.area() == 0)
+		  return 0;
+
+	  return (float)overlappedBox.area() / (float)r1.area();
+	  //return r1.area() > r2.area() ? bboxRatio(r2, overlappedBox) : bboxRatio(r1, overlappedBox);
+  }
+  // Max Ratio of r1 & r2 overlapping 
+  float maxBboxesBounding(cv::Rect2f r1, cv::Rect2f r2)
+  {
+	  cv::Rect2f overlappedBox = r1 & r2;
+	  int overlappedArea = overlappedBox.area();
+	  if (overlappedArea == 0)
+		  return 0;
+
+	  return   r1.area() < r2.area() ? overlappedArea / r1.area() : overlappedArea / r2.area();
+  }
+
+
+  double interpolate(vector<double> &xData, vector<double> &yData, double x, bool extrapolate)
+  {
+	  int size = xData.size();
+
+	  int i = 0;                                                                  // find left end of interval for interpolation
+	  if (x >= xData[size - 2])                                                 // special case: beyond right end
+	  {
+		  i = size - 2;
+	  }
+	  else
+	  {
+		  while (x > xData[i + 1]) i++;
+	  }
+	  double xL = xData[i], yL = yData[i], xR = xData[i + 1], yR = yData[i + 1];      // points on either side (unless beyond ends)
+	  if (!extrapolate)                                                         // if beyond ends of array and not extrapolating
+	  {
+		  if (x < xL) yR = yL;
+		  if (x > xR) yL = yR;
+	  }
+
+	  double dydx = (yR - yL) / (xR - xL);                                    // gradient
+
+	  return yL + dydx * (x - xL);                                              // linear interpolation
+  }
+
+
+
+  // Interpolate 2
+  typedef std::vector<double> DoubleVec;
+
+  int findNearestNeighbourIndex(const double ac_dfValue, std::vector<double> x)
+  {
+	  double lv_dfDistance = DBL_MAX;
+	  int lv_nIndex = -1;
+
+	  for (unsigned int i = 0; i < x.size(); i++) {
+		  double newDist = ac_dfValue - x[i];
+		  if (newDist >= 0 && newDist < lv_dfDistance) {
+			  lv_dfDistance = newDist;
+			  lv_nIndex = i;
+		  }
+	  }
+
+	  return lv_nIndex;
+  }
+
+  std::vector<double> interpolation2(std::vector<double> x, std::vector<double> y, std::vector<double> xx)
+  {
+	  double dx, dy;
+	  std::vector<double> slope, intercept, result;
+	  slope.resize(x.size());
+	  intercept.resize(x.size());
+	  result.resize(xx.size());
+	  int indiceEnVector;
+
+	  for (unsigned i = 0; i < x.size(); i++) {
+		  if (i < x.size() - 1) {
+			  dx = x[i + 1] - x[i];
+			  dy = y[i + 1] - y[i];
+			  slope[i] = dy / dx;
+			  intercept[i] = y[i] - x[i] * slope[i];
+		  }
+		  else {
+			  slope[i] = slope[i - 1];
+			  intercept[i] = intercept[i - 1];
+		  }
+	  }
+
+	  for (unsigned i = 0; i < xx.size(); i++) {
+		  indiceEnVector = findNearestNeighbourIndex(xx[i], x);
+		  if (indiceEnVector != -1) {
+			  result[i] = slope[indiceEnVector] *
+				  xx[i] + intercept[indiceEnVector];
+		  }
+		  else
+			  result[i] = DBL_MAX;
+	  }
+	  return result;
   }
