@@ -205,7 +205,8 @@ private:
  float    bboxRatio(cv::Rect2f r1, cv::Rect2f r2);
  cv::Rect2f resizeBBox(cv::Rect2f rect, float scale);
  cv::Rect2f resizeBBox(cv::Rect2f rect, cv::Size size, float scale);
- 
+ void blenBbox(cv::Rect2f &r1, cv::Rect2f r2, float alpha = 0.3);
+
  
  float bboxesBounding(cv::Rect2f r1, cv::Rect2f r2); // Ratio of r1 overlapping r2
  float maxBboxesBounding(cv::Rect2f r1, cv::Rect2f r2); // Ratio of overlapping (bi directional)

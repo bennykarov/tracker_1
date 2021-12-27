@@ -882,6 +882,22 @@ std::string FILE_UTILS::find_fname(const std::string  filename)
 	  return   r1.area() < r2.area() ? overlappedArea / r1.area() : overlappedArea / r2.area();
   }
 
+  /*-------------------------------------------
+   * Alpha blanding for RECT
+   -------------------------------------------*/
+  void blenBbox(cv::Rect2f &r1, cv::Rect2f r2, float alpha)
+  {
+	  cv::Point2f blendedCenter = (centerOf(r1) * alpha + centerOf(r2) * (1. - alpha)) / 2.;
+	  r1.width =  r1.width * alpha + r2.width *  (1. - alpha);
+	  r1.height = r1.height* alpha + r2.height * (1. - alpha);
+	  moveByCenter(r1, blendedCenter);
+
+	/*
+	  if (r1 != debugOrg) // DDEBUG 
+		   Beep(1200, 20);
+	*/
+
+  }
 
   double interpolate(vector<double> &xData, vector<double> &yData, double x, bool extrapolate)
   {

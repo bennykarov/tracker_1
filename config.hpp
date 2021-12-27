@@ -35,23 +35,25 @@ namespace  SIZES {
 
 struct Config
 {
+	// Operational 
 	std::string videoName;
 	std::string roisName;
+	int showTime = 1;
+	int showBoxesNum = 1;
+	int debugLevel = 0;
+	float displayScale = 1.;
+	// Algo
 	int trackerType = 0;
 	int prediction = 1;
 	int onlineTracker = 0;
-	int debugLevel = 0;
 	float scale = 0.5;
-	float displayScale = 1.;
 	int waitKeyTime=1;
 	int record = 0;
 	int demoMode=0;
 	// MOG2 params:
-	int MHistory = 100;
+	int MHistory = 200;
 	float MvarThreshold = 20.0;
 	float MlearningRate = -1.;
-	//int useTracker = 0;
 	float shadowclockDirection = 0;
 	int detectionFPS = 2;
-
 	};
