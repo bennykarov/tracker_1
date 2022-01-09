@@ -49,6 +49,9 @@
 #pragma comment(lib, "opencv_features2d430.lib")
 #endif
 
+int test_KF_mouse();
+
+
 /*---------------------------------------------------------------------------------------------
 								U T I L S
 ---------------------------------------------------------------------------------------------*/
@@ -112,6 +115,7 @@ bool readConfigFile(std::string ConfigFName, Config &conf)
 }
 
 
+#if 0
 void testKalman()
 { // DDEBUG DDEBUG - test KF
 	CPredict dPred;
@@ -128,12 +132,13 @@ void testKalman()
 
 		//cv::Point2f predictCenter = dPred.predictKF2(dobj, confidence);
 		//if (confidence > 0)
-		predictBox = dPred.predictKF(dobj, confidence);
-		if (!predictBox.empty())
-			//newBox = moveByCenter(newBox, predictCenter);
-			newBox = predictBox;
+		predictCenter = dPred.predictKF2(dobj, confidence);
+		if (confidence == 0) {
+			std::cout << "error\n";
+			return; //???
+		}
 		else {
-			//if (i % 2 == 0) 
+			if (i % 2 == 0)
 			{
 				newBox.x += 1;
 				newBox.y += 1;
@@ -147,6 +152,49 @@ void testKalman()
 
 		std::cout << dobj.m_bboxes.back() << "\n";
 
+	}
+}
+#endif 
+
+void testKalman2()
+{ // DDEBUG DDEBUG - test KF
+	CPredict dPred;
+	float confidence;
+	cv::Rect2f predictBox;
+	cv::Point2f predictCenter;
+	CObject dobj(cv::Rect(100, 200, 300, 400), 10);
+	
+	int i = 0;
+	for (; i < CONSTANTS::StableLenForPrediction; i++) {
+		cv::Rect2f newBox = dobj.m_bboxes.back();
+
+		if (i % 2 == 0)
+		{
+			newBox.x += 1;
+			newBox.y += 1;
+		}
+
+		dobj.add(newBox, i, DET_TYPE::BGSeg);
+		std::cout << dobj.m_bboxes.back() << "\n";
+	}
+
+	// First prediction 
+	predictCenter = dPred.predictKF2(dobj, confidence, i);
+	predictBox = moveByCenter(dobj.m_bboxes.back(), predictCenter);
+	dobj.add(predictBox, ++i , DET_TYPE::BGSeg);
+
+
+	for (; i < CONSTANTS::StableLenForPrediction + 20; i++) {
+		predictCenter = dPred.predictKF2(confidence);
+
+		if (1)    std::cout << "prediction center " << predictCenter << "\n";  // DDEBUG 
+
+
+		predictBox = moveByCenter(dobj.m_bboxes.back(), predictCenter);
+		dobj.add(predictBox, i, DET_TYPE::BGSeg);
+
+
+		//std::cout << dobj.m_bboxes.back() << "\n";
 	}
 }
 
@@ -303,8 +351,11 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 
 
-		//-------------------------------------------------------------------------------------------
-		//if (1)  testKalman();
+		//--------------------------- T E S T     Z O N E  ------------------------------------------
+		
+		//testKalman2();
+		//test_KF_mouse();
+
 		//-------------------------------------------------------------------------------------------
 
 		if (0)
@@ -475,7 +526,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		 -------------------------------------------*/
 		/*
 		int NO_MATCH = 0;
-		int OVERLAPPED = 1; // but area don't match 
+		int OVERLAPPED = 1; // but area don't match		
 		int MATCH = 2;
 		*/
 
@@ -493,6 +544,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 
 			for (int i = 0; i < newROIs.size(); i++) {
+				//---------------------------------
 				// Case 1 (best) - rect overlapped 
 				//---------------------------------
 				if (/*match[i] == 0 &&*/ (newROIs[i] & cv::Rect(oldObj.m_bboxes.back())).area() > 0) { 
@@ -523,19 +575,23 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 					}
 #endif 
 					else if (m_params.prediction > 0) {
+						//---------------------------------------------------
 						// Case 2  - rects dont overlapped - use prediction 
-						//---------------------------------
+						//---------------------------------------------------
 						float confidence;
-						if (1) 
+						if (0)
+							// Kalman 1
 							predictBox = m_predictions[objInd].predictKF(oldObj, confidence);
 						else {
-							// Kalman2 
-							cv::Point2f predictCenter = m_predictions[objInd].predictKF2(oldObj, confidence);
+							// Kalman2 (new) 
+							cv::Point2f predictCenter = m_predictions[objInd].predictKF2(oldObj, confidence, m_frameNum);
 							predictBox = moveByCenter(oldObj.m_bboxes.back(), predictCenter);
 						}
+
 						float curOverLapped = bboxesBounding(predictBox, newROIs[i]); // predictBox bounding-ratio inside newROI
 						// -2- Accepatable match
-						if (curOverLapped > MinOverLappedRatio)  
+						//if (curOverLapped > MinOverLappedRatio)   DDEBUG REMOVED CONDITION 
+						if (1)
 						{
 							newBox = predictBox;
 							//newBox = predictBox & newROIs[i];
@@ -574,8 +630,6 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			}
 		} // predict
 #endif 
-
-		std::cout << "----\n";
 		if (0) // DDEBUG PRINT 
 		{
 			for (int i = 0; i < m_objects.size(); i++) {
@@ -967,7 +1021,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 
 			//cv::rectangle(display, resizeBBox(m_objects[i].m_bboxes.back(),0.6) , color);
 			cv::Rect2f bbox = scaleBBox(m_objects[i].m_bboxes.back(), scale);
-			cv::rectangle(display, bbox, color);
+			cv::rectangle(display, bbox, color, 4);
 
 			if (m_objects[i].m_detectionTypes.back() == DET_TYPE::Tracker)
 				UTILS::drawCorss(display, bbox, cv::Scalar(255, 255, 255));
@@ -978,7 +1032,7 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 			*/
 			
 			cv::Point text_pos = cv::Point(bbox.x, bbox.y - 10);
-			if (m_params.debugLevel > 2) // DDEBUG MODE 
+			if (m_params.debugLevel > 1) // DDEBUG MODE 
 				cv::putText(display, std::to_string(i), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
 			else if (m_params.showTime)
 				cv::putText(display, std::to_string(1 + (int)((float)m_objects[i].age() / (float)CONSTANTS::FPS)), text_pos, cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
@@ -988,8 +1042,8 @@ void CTrack::init(int w, int h, int imgSize , float scaleDisplay)
 		}
 
 		// print num of detected objects
-		titlePos.x += 150;
-		cv::putText(display, "(# " + std::to_string(displayedObjects) + ")", titlePos, cv::FONT_HERSHEY_SIMPLEX, 1., cv::Scalar(200, 50, 50), 2);
+		titlePos.x += 1600;
+		cv::putText(display, "(#" + std::to_string(displayedObjects) + ")", titlePos, cv::FONT_HERSHEY_SIMPLEX, 1.7, cv::Scalar(0, 0, 0), 2);
 
 	}
 #if 0

@@ -7,8 +7,8 @@ namespace CONSTANTS {
 	int const motionDetectionFPS = DetectionFPS;
 	int const MogEmphasizeFactor = 1;
 	int const StableLen = 4;
-	int const minLenForPrediction = 10; 
-	int const maxLenForPrediction = FPS; 
+	int const minLenForPrediction = 10 + 1; // keep odd for acceleration calc
+	int const maxLenForPrediction = FPS + 1;  // keep odd for acceleration calc 
 	int const StableLenForPrediction = minLenForPrediction+10; // Prediction doesn't usethe first 10 unstable frames
 
 	/*
