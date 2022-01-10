@@ -12,102 +12,100 @@
 
 
 cv::Rect2f CPredict::predict(CObject obj)
-	{
-		//int skip = 2; // optimize motion step - increase motion speed
-		const int PredictionDepth = CONSTANTS::FPS;  
-		const float MinOverLappedRatio = 0.2;
-		const int BackStepsForMotion = 10;
+{
+	//int skip = 2; // optimize motion step - increase motion speed
+	const int PredictionDepth = CONSTANTS::FPS;
+	const float MinOverLappedRatio = 0.2;
+	const int BackStepsForMotion = 10;
 
-		if (obj.m_bboxes.size() < 2)
-			return obj.m_bboxes.back();
+	if (obj.m_bboxes.size() < 2)
+		return obj.m_bboxes.back();
 
+	int steps = MIN(PredictionDepth, obj.m_bboxes.size() - 1);
+	int lastInd = obj.m_bboxes.size() - 1;
+	cv::Rect2f predictBox;
+
+
+	int predictionMethod = 3; // <<<--------  DDEBUG 
+
+	if (predictionMethod == 1) {
+		cv::Point2f motion;
+		std::vector <cv::Point2f> motion2f;
+		std::vector <cv::Point2f> accel;
+
+		for (int i = 0; i < steps; i++) {
+			motion = centerOf(obj.m_bboxes[lastInd - i]) - centerOf(obj.m_bboxes[lastInd - i - 1]);
+			motion2f.push_back(cv::Point2f(motion.x, motion.y));
+		}
+
+		for (int j = 0; j < motion2f.size() - 1; j++)
+			accel.push_back(motion2f[j + 1] - motion2f[j]);
+
+		cv::Point2f meanMotion;
+		cv::Point2f meanVel = std::accumulate(motion2f.begin(), motion2f.end(), cv::Point2f(0, 0)) / (float)motion2f.size();
+		cv::Point2f meanAcc(0, 0);
+
+		bool useAcceleration = false;
+		if (useAcceleration) {
+			cv::Point2f meanAcc(0, 0);
+			if (!accel.empty())
+				meanAcc = std::accumulate(accel.begin(), accel.end(), cv::Point2f(0, 0)) / (float)accel.size();
+		}
+
+		meanMotion = meanVel + meanAcc;
+
+
+		predictBox = obj.m_bboxes[lastInd] + meanMotion;
+		//if (meanMotion.x < 1. || meanMotion.y < 1.) ......
+	}
+	if (predictionMethod == 10) {
 		int steps = MIN(PredictionDepth, obj.m_bboxes.size() - 1);
 		int lastInd = obj.m_bboxes.size() - 1;
-		cv::Rect2f predictBox;
 
-
-		int predictionMethod = 3; // <<<--------  DDEBUG 
-
-		if (predictionMethod == 1) {
-			cv::Point2f motion;
-			std::vector <cv::Point2f> motion2f;
-			std::vector <cv::Point2f> accel;
-
-			for (int i = 0; i < steps; i++) {
-				motion = centerOf(obj.m_bboxes[lastInd - i]) - centerOf(obj.m_bboxes[lastInd - i - 1]);
-				motion2f.push_back(cv::Point2f(motion.x, motion.y));
-			}
-
-			for (int j = 0; j < motion2f.size() - 1; j++)
-				accel.push_back(motion2f[j + 1] - motion2f[j]);
-
-			cv::Point2f meanMotion;
-			cv::Point2f meanVel = std::accumulate(motion2f.begin(), motion2f.end(), cv::Point2f(0, 0)) / (float)motion2f.size();
-			cv::Point2f meanAcc(0, 0);
-			
-			bool useAcceleration = false;
-			if (useAcceleration) {
-				cv::Point2f meanAcc(0, 0);
-				if (!accel.empty())
-					meanAcc = std::accumulate(accel.begin(), accel.end(), cv::Point2f(0, 0)) / (float)accel.size();
-			}
-
-			meanMotion = meanVel + meanAcc;
-
-
-			predictBox = obj.m_bboxes[lastInd] + meanMotion;
-			//if (meanMotion.x < 1. || meanMotion.y < 1.) ......
-		}
-		if (predictionMethod == 10) {
-			int steps = MIN(PredictionDepth, obj.m_bboxes.size() - 1);
-			int lastInd = obj.m_bboxes.size() - 1;
-
-			cv::Point2f motion10steps = centerOf(obj.m_bboxes[lastInd]) - centerOf(obj.m_bboxes[lastInd - 10]);
-			cv::Point2f motion1step = motion10steps / 10.;
-			predictBox = obj.m_bboxes[lastInd] + motion1step;
-		}
-		else 
-		{
-			// init motion vectors
-			vector<double> iData, xData, yData;
-			int fromIndex = obj.m_bboxes.size() - steps - 1;
-			int ii = fromIndex;
-			for (; ii < obj.m_bboxes.size(); ii++) {
-				iData.push_back(double(ii));
-				xData.push_back(centerOf(obj.m_bboxes[ii]).x);
-				yData.push_back(centerOf(obj.m_bboxes[ii]).y);
-			}
-			double predictX, predictY;
-
-			if (predictionMethod == 2) {			//boost::math::interpolators::cardinal_cubic_b_spline<double> spline(xData.begin(), f.end(), x0, dx);
-
-
-				bool extrapolate = true;
-				predictX = interpolate(iData, xData, double(ii), extrapolate);
-				predictY = interpolate(iData, yData, double(ii), extrapolate);
-
-				//predictBox = moveByCenter(obj.m_bboxes[lastInd], cv::Point((int)predictX1, (int)predictY1));
-
-				//cv::Point2f meanMotion2 = cv::Point((int)predictX, (int)predictY) - centerOf(obj.m_bboxes[lastInd]);
-			}
-			else if (predictionMethod == 3) {
-				std::vector<double> xx;
-				xx.push_back(ii);
-				std::vector<double> predictXX = interpolation2(iData, xData, xx);
-				std::vector<double> predictYY = interpolation2(iData, yData, xx);
-
-				predictX = predictXX[0];
-				predictY = predictYY[0];
-			}
-
-			predictBox = moveByCenter(obj.m_bboxes[lastInd], cv::Point2f(predictX, predictY));
-
-		}
-
-
-
-		return predictBox;
+		cv::Point2f motion10steps = centerOf(obj.m_bboxes[lastInd]) - centerOf(obj.m_bboxes[lastInd - 10]);
+		cv::Point2f motion1step = motion10steps / 10.;
+		predictBox = obj.m_bboxes[lastInd] + motion1step;
 	}
+	else
+	{
+		// init motion vectors
+		vector<double> iData, xData, yData;
+		int fromIndex = obj.m_bboxes.size() - steps - 1;
+		int ii = fromIndex;
+		for (; ii < obj.m_bboxes.size(); ii++) {
+			iData.push_back(double(ii));
+			xData.push_back(centerOf(obj.m_bboxes[ii]).x);
+			yData.push_back(centerOf(obj.m_bboxes[ii]).y);
+		}
+		double predictX, predictY;
+
+		if (predictionMethod == 2) {			//boost::math::interpolators::cardinal_cubic_b_spline<double> spline(xData.begin(), f.end(), x0, dx);
+
+
+			bool extrapolate = true;
+			predictX = interpolate(iData, xData, double(ii), extrapolate);
+			predictY = interpolate(iData, yData, double(ii), extrapolate);
+
+			//predictBox = moveByCenter(obj.m_bboxes[lastInd], cv::Point((int)predictX1, (int)predictY1));
+
+			//cv::Point2f meanMotion2 = cv::Point((int)predictX, (int)predictY) - centerOf(obj.m_bboxes[lastInd]);
+		}
+		else if (predictionMethod == 3) {
+			std::vector<double> xx;
+			xx.push_back(ii);
+			std::vector<double> predictXX = interpolation2(iData, xData, xx);
+			std::vector<double> predictYY = interpolation2(iData, yData, xx);
+
+			predictX = predictXX[0];
+			predictY = predictYY[0];
+		}
+
+		predictBox = moveByCenter(obj.m_bboxes[lastInd], cv::Point2f(predictX, predictY));
+
+	}
+	return predictBox;
+}
+
 
 cv::Rect2f CPredict::predictKF(CObject obj, float &confidence)
 {
@@ -211,6 +209,7 @@ cv::Point2f  CPredict::predictKF2(CObject obj, float &confidence)
 
 }
 #endif 
+
 /*-----------------------------------------------------------------
  Predict only (no update)
  -----------------------------------------------------------------*/
@@ -371,7 +370,6 @@ cv::Rect2f CPredict::predictNext(CObject obj, cv::Rect2f mogROI, DET_TYPE &type)
 
 		 return 1;
 	 }
-
 
 
 	 bool CPredict::initKF(CObject obj)

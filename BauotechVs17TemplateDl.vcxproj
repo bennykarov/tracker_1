@@ -88,7 +88,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>BAUOTECHVS17TEMPLATEDL</TargetName>
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Performance Tools\x64\PerfSDK;F:\libraries\boost_1_64_0;F:\libraries\boost_1_64_0\boost;F:\libraries\opencv-4.3.0\build\install\include</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Performance Tools\x64\PerfSDK;F:\libraries\boost_1_64_0;F:\libraries\boost_1_64_0\boost;F:\libraries\opencv-4.3.0\build\install\include;F:\libraries\eigen-3.4.0</IncludePath>
     <LibraryPath>F:\libraries\opencv-4.3.0\build\install\x64\vc15\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

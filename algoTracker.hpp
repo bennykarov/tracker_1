@@ -48,9 +48,12 @@ private:
 	
 	int detectByTracker_OLD(cv::Mat frame);
 
-	bool isStabel(const CObject &obj, int len);
+	bool isStable(const CObject &obj, int len);
+	bool isStableDetection(const CObject &obj, int len);
 
 	std::vector <int> matchObjects(std::vector<cv::Rect> newROIs);
+	bool matchByPrediction(int objID, cv::Rect2f mogBox);
+
 	int matchObjects_OLD(std::vector<cv::Rect> newROIs, std::vector<LABEL> lables);
 	void consolidateDetection();
 	void removeShadows(float shadowClockDirection);
@@ -97,5 +100,6 @@ private:
 
 	// Detection classes:
 	std::vector <CPredict>  m_predictions;
+	unsigned int m_objectID_counter = 0;
 
 };

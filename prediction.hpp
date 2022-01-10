@@ -14,6 +14,7 @@ public:
 	bool initKF(std::vector <cv::Rect> bboxes);
 	bool initKF(CObject obj);
 	bool initKF2(CObject obj);
+	void resetKF2() { m_predictionFrames = 0; }
 	cv::Rect2f predict(CObject obj); // Linear prediction algo's
 	cv::Rect2f predictKF(CObject obj, float &confidence); // Kalman Filter 
 	//cv::Point2f predictKF2(CObject obj, float &confidence); // Kalman Filter 

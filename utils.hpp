@@ -203,11 +203,12 @@ private:
  cv::Rect2f extendBBox(cv::Rect2f rect_, cv::Point2f p);
  cv::Rect2f scaleBBox(cv::Rect2f rect, float scale);
  float    bboxRatio(cv::Rect2f r1, cv::Rect2f r2);
+ float    bboxOrderRatio(cv::Rect2f r1, cv::Rect2f r2); // order is matter
  cv::Rect2f resizeBBox(cv::Rect2f rect, float scale);
  cv::Rect2f resizeBBox(cv::Rect2f rect, cv::Size size, float scale);
  void blenBbox(cv::Rect2f &r1, cv::Rect2f r2, float alpha = 0.3);
 
  
  float bboxesBounding(cv::Rect2f r1, cv::Rect2f r2); // Ratio of r1 overlapping r2
- float maxBboxesBounding(cv::Rect2f r1, cv::Rect2f r2); // Ratio of overlapping (bi directional)
+ float OverlappingRatio(cv::Rect2f r1, cv::Rect2f r2); // Ratio of overlapping (bi directional)
 
